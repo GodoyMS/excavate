@@ -481,13 +481,13 @@ async function* runWalk(
     // "walk the difference". So the partial index survives and is usable.
     finalize('stale', {
       reason: 'interrupted',
-      skipped: `history after ${walked} commits`,
+      skipped: `history after ${walked} ${walked === 1 ? 'commit' : 'commits'}`,
     });
     yield {
       tier: 'metadata',
       done: walked,
       total: null,
-      note: `cancelled after ${walked} commits — index marked partial`,
+      note: `cancelled after ${walked} ${walked === 1 ? 'commit' : 'commits'} — index marked partial`,
     };
     // **And then it throws, which an earlier draft of this did not.** Returning
     // cleanly is indistinguishable from finishing, and `@excavate/server`'s `runIndex`
@@ -502,7 +502,7 @@ async function* runWalk(
     // success. `CANCELLED` is the enumerated code for precisely this.
     throw new ExcavateError(
       'CANCELLED',
-      `indexing was cancelled after ${walked} commits; the partial index is stored and marked stale`,
+      `indexing was cancelled after ${walked} ${walked === 1 ? 'commit' : 'commits'}; the partial index is stored and marked stale`,
       { details: { walked, indexState: 'stale' } },
     );
   }
@@ -512,7 +512,7 @@ async function* runWalk(
     tier: 'metadata',
     done: walked,
     total: null,
-    note: `indexed ${walked} commits`,
+    note: `indexed ${walked} ${walked === 1 ? 'commit' : 'commits'}`,
   };
 
   if (analysisRequested) yield ANALYSIS_DEFERRED;
