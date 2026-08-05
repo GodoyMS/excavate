@@ -1,0 +1,16 @@
+# The workspace members, per LEAN-V1 §5.
+#
+# `prompts/` and `evals/` are deliberately NOT members: prompts are versioned
+# markdown templates read at runtime (M7) and evals is a harness + corpus (M7),
+# neither of which is a published package.
+packages:
+  - 'packages/*'
+  - 'cli'
+  - 'fixtures'
+
+# pnpm 10 blocks lifecycle scripts by default. Only esbuild (vitest's bundler) needs
+# one; every other dependency stays sandboxed. Keeping this list short and explicit is
+# a supply-chain control, not a formality.
+onlyBuiltDependencies:
+  - better-sqlite3
+  - esbuild

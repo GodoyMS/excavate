@@ -1,0 +1,28 @@
+{
+  "name": "@excavate/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The daemon: HTTP + SSE on 127.0.0.1, token auth, job queue, repo session lifecycle. The composition root.",
+  "license": "Apache-2.0",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@excavate/ai": "workspace:*",
+    "@excavate/analysis": "workspace:*",
+    "@excavate/core": "workspace:*",
+    "@excavate/evidence": "workspace:*",
+    "@excavate/git": "workspace:*",
+    "@excavate/index": "workspace:*",
+    "@excavate/store": "workspace:*",
+    "@hono/node-server": "^2.1.0",
+    "hono": "^4.13.0"
+  }
+}

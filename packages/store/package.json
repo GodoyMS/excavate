@@ -1,0 +1,24 @@
+{
+  "name": "@excavate/store",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "SQLite schema, migrations, typed queries, bulk writers, and FTS5. The only package permitted to write SQL (boundary rule B2).",
+  "license": "Apache-2.0",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@excavate/core": "workspace:*",
+    "better-sqlite3": "^13.0.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "//": "Solution file. Builds every workspace member in dependency order.",
+  "files": [],
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/git" },
+    { "path": "packages/store" },
+    { "path": "packages/index" },
+    { "path": "packages/analysis" },
+    { "path": "packages/evidence" },
+    { "path": "packages/ai" },
+    { "path": "packages/server" },
+    { "path": "packages/ui" },
+    { "path": "fixtures" },
+    { "path": "cli" }
+  ]
+}

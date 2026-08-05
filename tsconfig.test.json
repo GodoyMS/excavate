@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "//": "Tests are excluded from every package's emit so dist/ stays publishable; they are typechecked here instead, against the built declarations.",
+  "//lib": "DOM is included because this one project spans every package's tests, including the ui package's browser-targeted source. It does not loosen ui itself: ui's own tsconfig sets types:[] and check-deps rejects any node: import there.",
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "noEmit": true,
+    "types": ["node"],
+    "lib": ["ES2023", "DOM", "DOM.Iterable"]
+  },
+  "include": [
+    "packages/*/src/**/*.test.ts",
+    "cli/src/**/*.test.ts",
+    "fixtures/src/**/*.test.ts",
+    "tests/**/*.test.ts"
+  ]
+}

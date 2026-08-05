@@ -1,0 +1,126 @@
+# The performance harness — structure now, assertions in M1.
+#
+# ROADMAP M0's perf budget is, verbatim, "None yet — establish the harness." M1 is the
+# milestone that asserts a real walk-throughput budget (see ROADMAP M1 "Perf budget"
+# and Part 13 §13.9 for the numbers), so this workflow deliberately contains no
+# thresholds: a fabricated budget is worse than no budget, because it either fails
+# honest work or passes a regression, and either way it teaches people to ignore red.
+#
+# What exists here is the expensive, fiddly part that M1 should not have to invent
+# under time pressure: getting the two CI reference corpora onto a runner with full
+# history. LEAN-V1 §3.1 cuts the five reference corpora of Part 13 §13.8.3 down to two
+# in CI — `ripgrep` (~2k commits) and `rust-analyzer` (~20k commits) — with `react` and
+# `linux` run manually before releases.
+#
+# `workflow_dispatch` only, and with no inputs. Cloning ~20k commits of history on every
+# pull request would make CI the thing that stalls the cadence (ROADMAP §3, items 7 and
+# 8), which is exactly the failure this repository is trying to avoid. A "which corpus"
+# input was tried and removed: `matrix` is not available in a job-level `if`, so
+# selecting one corpus left the other job *skipped*, and a skipped job reports green
+# having measured nothing. A green check that measured nothing is the one outcome this
+# project cannot afford.
+name: Performance
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  corpus:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    # Perf numbers are only comparable across runs on identical hardware, so this is
+    # single-platform on purpose: `ubuntu-latest` is the reference runner. macOS
+    # correctness lives in ci.yml.
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ripgrep
+            repo: BurntSushi/ripgrep
+          - name: rust-analyzer
+            repo: rust-lang/rust-analyzer
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      # Nothing here runs Excavate yet, so this proves only that the toolchain installs
+      # on the perf runner. It stays because M1's harness needs it and because
+      # `--frozen-lockfile` failing here is a fact worth learning before M1's deadline.
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # fetch-depth: 0 because the whole point is walking history — a shallow clone
+      # measures nothing. No `--filter=blob:none` either: blame and hunk extraction
+      # (M2) need the blobs, and a partial clone would move that cost into the
+      # measurement as on-demand fetches.
+      #
+      # persist-credentials: false — the corpus is third-party public code and this job
+      # never pushes anywhere.
+      #
+      # TODO(M1): pin each corpus to an exact SHA (`ref:` here, plus the SHA in the
+      # matrix) and cache the clone. Part 13 §13.8.3 requires the corpora be pinned so
+      # results stay comparable; an unpinned default branch silently changes the
+      # denominator between runs. Left unpinned rather than filled with a guessed SHA,
+      # and caching is only meaningful once the ref is fixed.
+      - name: Fetch corpus
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ matrix.repo }}
+          path: corpora/${{ matrix.name }}
+          fetch-depth: 0
+          persist-credentials: false
+          show-progress: false
+
+      # Real, verifiable facts about the corpus — no budgets. The commit count is the
+      # number every M1 throughput assertion divides by, so establishing it is the
+      # harness's job today.
+      #
+      # The one thing this *does* assert is that the clone is not shallow, because that
+      # is the failure this step exists to catch: a shallow corpus still prints a
+      # commit count, still exits 0, and would quietly make every future throughput
+      # number meaningless. It is a structural check, not an invented threshold.
+      #
+      # Values are captured into variables rather than interpolated into `echo`
+      # arguments: `set -e` does not abort on a command substitution that fails inside
+      # an argument list, so `echo "commits: $(git rev-list --count HEAD)"` would print
+      # an empty value and pass.
+      - name: Describe corpus
+        working-directory: corpora/${{ matrix.name }}
+        run: |
+          set -euo pipefail
+          shallow=$(git rev-parse --is-shallow-repository)
+          if [ "$shallow" != 'false' ]; then
+            echo "::error::corpus clone is shallow — every throughput number derived from it would be meaningless"
+            exit 1
+          fi
+          head=$(git rev-parse HEAD)
+          commits=$(git rev-list --count HEAD)
+          gitdir=$(du -sh .git | cut -f1)
+          echo "corpus:  ${{ matrix.repo }}"
+          echo "head:    $head"
+          echo "commits: $commits"
+          echo "git dir: $gitdir"
+
+      - name: Perf budgets
+        run: |
+          echo 'No perf budgets are asserted yet.'
+          echo 'ROADMAP M0: "Perf budget. None yet - establish the harness."'
+          echo 'M1 adds walk throughput, full-index wall clock, and index-size'
+          echo 'budgets, asserted here with the tolerance from Part 13 section 13.9,'
+          echo 'against a pinned corpus SHA. Until then this workflow only proves the'
+          echo 'corpus checkout works and is not shallow.'

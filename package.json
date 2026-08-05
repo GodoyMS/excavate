@@ -1,0 +1,45 @@
+{
+  "name": "excavate-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Excavate — git tells you what changed; Excavate tells you why.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/excavate-dev/excavate.git"
+  },
+  "packageManager": "pnpm@10.26.0",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev": "tsc -b && node cli/dist/bin.js open .",
+    "build": "tsc -b",
+    "gen:schema": "node scripts/gen-schema.mjs",
+    "typecheck": "tsc -b && tsc -p tsconfig.test.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
+    "check:deps": "node scripts/check-deps.mjs",
+    "verify": "pnpm check:deps && pnpm typecheck && pnpm lint && pnpm test",
+    "clean": "tsc -b --clean"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@excavate/core": "workspace:*",
+    "@excavate/git": "workspace:*",
+    "@excavate/git-fixtures": "workspace:*",
+    "@excavate/index": "workspace:*",
+    "@excavate/server": "workspace:*",
+    "@excavate/store": "workspace:*",
+    "@excavate/ui": "workspace:*",
+    "@types/node": "^22.19.1",
+    "eslint": "^9.39.1",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.4",
+    "vitest": "^3.2.4"
+  }
+}

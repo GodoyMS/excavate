@@ -1,0 +1,21 @@
+{
+  "name": "@excavate/analysis",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Deterministic derived facts: significance, ownership, coupling, hotspots, revert pairs, eras.",
+  "license": "Apache-2.0",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@excavate/core": "workspace:*",
+    "@excavate/store": "workspace:*"
+  }
+}

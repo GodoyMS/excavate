@@ -1,0 +1,17 @@
+{
+  "name": "@excavate/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Domain types, IDs, errors, and time. Depth 0 — depended on by everything, so it depends on nothing.",
+  "license": "Apache-2.0",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ]
+}

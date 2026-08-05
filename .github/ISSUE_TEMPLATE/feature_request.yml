@@ -1,0 +1,39 @@
+# Three fields. The roadmap checkbox exists because LEAN-V1 §3 is an explicit,
+# published cut-and-defer list, so a large share of requests already have an answer —
+# and "already planned for v1.2" is a much better outcome for everyone than a duplicate
+# thread. The problem statement is required and the solution is not, because a
+# well-described problem survives a change of design and a proposed solution often
+# does not.
+name: Feature request
+description: Something Excavate should be able to do
+labels: [enhancement]
+body:
+  - type: checkboxes
+    id: checked-roadmap
+    attributes:
+      label: Before you file
+      options:
+        - label: >-
+            I checked the roadmap and the cut list (docs/spec/ROADMAP.md,
+            docs/spec/LEAN-V1.md §3) and this is not already planned or deliberately
+            out of scope.
+          required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What can't you do today?
+      description: >-
+        The situation you were in and what you were trying to learn about the
+        repository, not the feature you have in mind for it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What do you think should happen? (optional)
+      description: >-
+        If it is a claim Excavate would make about a repository, say what evidence
+        would justify it — every claim has to be traceable to a commit, a line range,
+        a PR, or an issue.

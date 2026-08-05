@@ -1,0 +1,20 @@
+{
+  "name": "@excavate/ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The React application: views, Canvas2D renderer, design tokens. Renders API responses and computes nothing analytical (boundary rule B4).",
+  "license": "Apache-2.0",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@excavate/core": "workspace:*"
+  }
+}

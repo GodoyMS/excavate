@@ -1,0 +1,22 @@
+{
+  "name": "@excavate/evidence",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The heart of the product: six collectors, ranking, budget fitting, deterministic confidence, bundle hashing.",
+  "license": "Apache-2.0",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@excavate/core": "workspace:*",
+    "@excavate/git": "workspace:*",
+    "@excavate/store": "workspace:*"
+  }
+}

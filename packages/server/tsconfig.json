@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "types": ["node"]
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"],
+  "references": [
+    { "path": "../core" },
+    { "path": "../git" },
+    { "path": "../store" },
+    { "path": "../index" },
+    { "path": "../analysis" },
+    { "path": "../evidence" },
+    { "path": "../ai" }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "name": "@excavate/git",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "All reading of Git object data, by shelling out to `git`. The only package permitted to touch a repository (boundary rule B1).",
+  "license": "Apache-2.0",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@excavate/core": "workspace:*"
+  }
+}

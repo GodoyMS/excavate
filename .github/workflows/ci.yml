@@ -1,0 +1,115 @@
+# The gate every push and pull request has to pass, on both supported platforms.
+#
+# ROADMAP M0 deliverable 5 ("build, test, lint, typecheck on Linux and macOS") and the
+# Definition of Done item "CI green on both platforms". The Definition of Done also
+# names items 7 and 8 as the momentum forcing functions, which makes CI *latency* a
+# first-class requirement: a gate slower than the cadence it protects becomes the
+# reason the cadence slips. Everything here is chosen to keep the critical path short.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Read-only. Nothing in this workflow publishes, comments, or writes to the repository;
+# npm releases are a separate, manually triggered concern (M1 onward), so the token
+# handed to test code that shells out to `git` should be able to do nothing at all.
+permissions:
+  contents: read
+
+# A second push to the same branch makes the first run's answer worthless. Cancelling
+# it keeps queue time (and therefore feedback latency) proportional to the newest
+# commit rather than to how fast someone is iterating.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: ${{ matrix.os }} / node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+    # Generous relative to the real cost (a few minutes; M0 has no reference-corpus
+    # work in CI) but low enough that a hung `git` subprocess or a wedged daemon test
+    # fails instead of burning an hour of the queue.
+    timeout-minutes: 20
+    strategy:
+      # One platform's failure must not hide the other's result. Platform-specific
+      # breakage in Git tooling is common enough (path separators, case-insensitive
+      # filesystems, `git` version drift) that "which platforms failed" is usually the
+      # most informative single fact about a red build.
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        # The `engines` floor is >=22; these are the two LTS lines above it. Node 25 is
+        # left out because it is the current non-LTS line and `@types/node` is pinned to
+        # ^22 — a third Node line would cost a third of the matrix's queue time for
+        # coverage nobody is promised.
+        #
+        # Note for whoever wonders about the native dependency: `better-sqlite3` 13
+        # ships one Node-API prebuild per platform/arch *inside its tarball*
+        # (`prebuilds/linux-x64.node`, `prebuilds/darwin-arm64.node` — exactly the two
+        # runners here), and `lib/binding.js` prefers it over any local build. So
+        # nothing is downloaded or compiled on either runner, and the Node version does
+        # not change that. `onlyBuiltDependencies` still needs to list it, because a
+        # package with a `binding.gyp` and no `install` script gets an *implicit*
+        # `node-gyp rebuild` that pnpm 10 would otherwise block; that build then detects
+        # the prebuild and does nothing.
+        #
+        # Windows is out of scope until M6 (LEAN-V1 targets a POSIX `git` CLI first).
+        node: ['22', '24']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm before setup-node, because `cache: pnpm` needs a `pnpm` binary on PATH to
+      # resolve the store directory. No `version` input: action-setup reads the
+      # `packageManager` field, so the lockfile, local development, and CI can never
+      # disagree about the pnpm version.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      # The test suite builds *real* Git repositories (the `repo()` DSL, ROADMAP M0
+      # deliverable 3), and `git commit` fails outright on a runner with no identity.
+      #
+      # This step is not what makes fixtures deterministic: `fixtures/src/git.ts`
+      # already points GIT_CONFIG_GLOBAL and GIT_CONFIG_SYSTEM at the *null device* and
+      # passes identity through GIT_AUTHOR_*/GIT_COMMITTER_*, so a fixture ignores this
+      # global config entirely. It exists for the code that shells out to `git`
+      # *outside* that isolation — `@excavate/git` deliberately inherits the user's
+      # config (see `gitEnv()` in packages/git/src/exec.ts), ad-hoc test setup, and the
+      # perf harness — and to turn "Author identity unknown" into a non-event.
+      # init.defaultBranch pins branch naming so tests may assert on `main`.
+      - name: Configure git identity
+        run: |
+          git config --global user.name 'excavate-ci'
+          git config --global user.email 'ci@excavate.invalid'
+          git config --global init.defaultBranch main
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Deliberately ordered cheapest-and-most-informative first, matching `pnpm
+      # verify` so a local run and a CI run fail at the same step.
+      #
+      #   check:deps  seconds, no build. A broken package graph (ADR-0001) makes every
+      #               later failure a symptom, so it has to be diagnosed first.
+      #   typecheck   `tsc -b` plus the test project. Produces the build, so a build
+      #               break surfaces here rather than being a separate step.
+      #   lint        needs type information, so it cannot precede typecheck usefully.
+      #   test        slowest, and its failures are the least ambiguous.
+      - name: Check package graph
+        run: pnpm check:deps
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test

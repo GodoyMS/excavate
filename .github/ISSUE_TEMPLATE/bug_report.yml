@@ -1,0 +1,97 @@
+# Short on purpose. Every field is something that decides whether a report is
+# actionable at all — what happened, how to reproduce it, which versions, which
+# platform, `excavate doctor` output, and repository scale — because Excavate's bugs are
+# overwhelmingly environmental (git version behaviour, path handling, history shape)
+# rather than logical. A longer form gets abandoned, and an abandoned report teaches
+# nothing.
+#
+# The `doctor` field is `render: text` *and* required. If GitHub ever stops enforcing
+# `required` on a rendered textarea, the label and description still make the
+# expectation unmistakable, and verbatim unmangled output is worth more than the
+# validation.
+name: Bug report
+description: Something Excavate did wrong, or stopped doing
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what did you expect instead?
+      placeholder: |
+        `excavate why src/foo.ts:42` reported no evidence.
+        I expected the commit that introduced the line.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How can we reproduce it?
+      description: >-
+        The command you ran and, if the repository is public, its URL and the commit
+        you were on. A public repository turns a report into a test case.
+    validations:
+      required: true
+
+  - type: input
+    id: excavate-version
+    attributes:
+      label: Excavate version
+      description: >-
+        `excavate --version`. Asked separately from `doctor` output on purpose: the
+        version is the first thing triage needs, and `doctor` is sometimes the thing
+        that is broken.
+      placeholder: 0.1.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `excavate doctor`
+      description: >-
+        `doctor` reports the resolved git binary, the index schema version, and the
+        state of the index — the three things that explain most wrong answers. Paste it
+        verbatim; it contains no repository contents. If `doctor` itself is what fails,
+        paste the error.
+      render: text
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: OS and version
+      description: Windows is not supported until v1.0 (M6).
+      placeholder: macOS 15.3 (arm64) · Ubuntu 24.04 · Fedora 41
+    validations:
+      required: true
+
+  - type: input
+    id: node-version
+    attributes:
+      label: Node version
+      description: '`node --version`. Excavate requires 22 or newer.'
+      placeholder: v22.14.0
+    validations:
+      required: true
+
+  - type: input
+    id: git-version
+    attributes:
+      label: Git version
+      description: '`git --version`. Excavate reads history by shelling out to `git`.'
+      placeholder: git version 2.48.1
+    validations:
+      required: true
+
+  - type: input
+    id: repo-size
+    attributes:
+      label: Repository size
+      description: >-
+        `git rev-list --count --all` and `du -sh .git`. Scale is the difference between
+        a logic bug and a performance or memory bug.
+      placeholder: 18,400 commits · 260 MB .git
+    validations:
+      required: true
