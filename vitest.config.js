@@ -37,6 +37,28 @@ export default defineConfig({
       'tests/**/*.test.ts',
     ],
     reporters: ['default'],
+
+    /**
+     * Bounded well below the core count on purpose.
+     *
+     * The fixture suites drive real `git` through **synchronous** spawns, so a worker
+     * running one of them blocks its own event loop for seconds at a time and cannot
+     * service vitest's reporter RPC. Left unbounded, vitest starts one worker per core,
+     * every one of them is CPU-bound on a `git` child process, and the run dies with
+     * `[vitest-worker]: Timeout calling "onTaskUpdate"` — **all tests passing, exit code
+     * 1**. That is the worst possible failure shape: a green suite and a red build.
+     *
+     * Three is not a guess: unbounded and `--maxWorkers=6` both reproduced it on a
+     * 10-core machine under load, `--maxWorkers=3` did not, and the whole suite still
+     * finishes in about a minute because the slow files are I/O-bound on `git` rather
+     * than on us.
+     *
+     * The real fix is for the fixture builder to spawn asynchronously; until then this
+     * keeps the exit code honest. CI never hit it (its runners are less contended), which
+     * is exactly why it would have been a miserable intermittent failure to diagnose
+     * later.
+     */
+    maxWorkers: 3,
     // The end-to-end test builds a 100-commit repository with real `git` and then indexes
     // it; the default 5s timeout is not enough on a cold cache or a slow macOS runner.
     testTimeout: 120_000,
