@@ -108,10 +108,41 @@ const BOT_NAME_PATTERNS: readonly RegExp[] = [
   /^(?:github[- ]actions|gitlab ci|jenkins|travis ci|circleci)\b/i,
 ];
 
+/**
+ * Merge queues, which follow no naming convention at all.
+ *
+ * These do not announce themselves. `bors` is called `bors`, and it is the most prolific
+ * committer in most of the Rust ecosystem: on `rust-analyzer` it authors 2,786 of the 12,858
+ * first-parent commits — more than three times the top human — and without this list it leads
+ * the cast of characters and owns a large share of the repository's files. A merge queue is the
+ * clearest possible case of a bot whose commits are real provenance and whose *authorship* means
+ * nothing, which is what {@link isBotIdentity} exists to separate.
+ *
+ * An exact, normalised name match rather than a prefix, because these are short words that occur
+ * in human names. A `\b`-anchored `/^bors/` would also match a person called Boris; requiring the
+ * whole name to be exactly `bors` cannot. The list is short and every entry is a specific,
+ * verifiable piece of infrastructure — the bar for adding one is that it is *named* in a project's
+ * own documentation as its merge bot, not that it looks automated.
+ */
+const MERGE_QUEUE_NAMES: ReadonlySet<string> = new Set([
+  'bors',
+  'bors[bot]',
+  'homu',
+  'mergify',
+  'mergify[bot]',
+  'kodiakhq',
+  'meeseeks',
+  'rust highfive',
+  'bulldozer',
+  'craft',
+  'autobot',
+]);
+
 export function isBotIdentity(identity: Identity): boolean {
   const email = identity.email.trim();
   const name = identity.name.trim();
   return (
+    MERGE_QUEUE_NAMES.has(normalizeName(name)) ||
     BOT_EMAIL_PATTERNS.some((re) => re.test(email)) ||
     BOT_NAME_PATTERNS.some((re) => re.test(name))
   );
@@ -203,7 +234,7 @@ export function createIdentityResolver(mailmap: Mailmap | null): IdentityResolve
   const rows: Row[] = [];
   /** Normalised email (or mailmap-canonical email) → row. Steps 1–3. */
   const byKey = new Map<string, Row>();
-  /** `name domain` → rows, for step 4. */
+  /** `name\0domain` → rows, for step 4. */
   const byNameDomain = new Map<string, Row[]>();
   const dirty = new Set<Row>();
 
@@ -256,7 +287,7 @@ export function createIdentityResolver(mailmap: Mailmap | null): IdentityResolve
       /* Step 4 — same normalised name and same email domain. Requires a domain, or every
          identity with an empty email would collapse into one person. */
       if (row === undefined && nameKey !== '' && domain !== '') {
-        const candidates = byNameDomain.get(`${nameKey} ${domain}`) ?? [];
+        const candidates = byNameDomain.get(`${nameKey}\0${domain}`) ?? [];
         row = candidates[0];
         if (row !== undefined) source = 'name-and-domain';
       }
@@ -303,7 +334,7 @@ export function createIdentityResolver(mailmap: Mailmap | null): IdentityResolve
       remember(row, exact);
       remember(row, normalized);
       if (nameKey !== '' && domain !== '') {
-        const key = `${nameKey} ${domain}`;
+        const key = `${nameKey}\0${domain}`;
         const list = byNameDomain.get(key);
         if (list === undefined) byNameDomain.set(key, [row]);
         else if (!list.includes(row)) list.push(row);

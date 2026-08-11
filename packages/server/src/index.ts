@@ -192,3 +192,8 @@ export interface JobQueue {
 }
 
 export { createJobQueue } from './jobs.js';
+
+/* ── The stats report ──────────────────────────────────────────────────────── */
+
+export type { ReportLimits } from './report.js';
+export { buildStatsReport, DEFAULT_REPORT_LIMITS } from './report.js';

@@ -78,6 +78,24 @@ export const DEFAULT_SIGNIFICANCE_WEIGHTS: SignificanceWeights = {
   penaltyBulkMechanical: 4.5,
 };
 
+/**
+ * Where scale stops adding to significance.
+ *
+ * Fifty files and two thousand lines. Both are a little above the point where a change stops
+ * being something one person held in their head at once — `BULK_FILE_THRESHOLD` puts that at
+ * thirty — so the cap is reached only by commits that are already large enough for scale to have
+ * said everything it can say about them. What separates a genuine 200-file refactor from a
+ * 200-file codemod after this change is the *other* nine terms: message quality, path rarity,
+ * whether it touched a manifest or a public entry point, whether it was a revert. Those are the
+ * terms that carry information, and capping scale is what lets them decide.
+ */
+export const SCALE_SATURATION = { files: 50, churn: 2000 } as const;
+
+/** `log1p` normalised by the cap and clamped to 0..1, so the term is a fraction of its weight. */
+function saturating(value: number, cap: number): number {
+  return Math.min(1, Math.log1p(Math.max(0, value)) / Math.log1p(cap));
+}
+
 /** Everything the score needs about one commit, gathered by the analyzer from stored rows. */
 export interface SignificanceInput {
   readonly filesTouched: number;
@@ -101,8 +119,19 @@ export interface SignificanceInput {
  * `pathRarity` is normalised against this corpus, so cross-repository comparison is
  * meaningless and no caller should be tempted into it.
  *
- * Logarithms on the size terms are what stop a 4,000-file commit from dominating on scale
- * alone: doubling the file count adds a constant, not a multiple.
+ * **The size terms are bounded, and a logarithm alone was not enough.** The first version of
+ * this function multiplied the weight by `log1p(value)` directly, which slows growth but never
+ * stops it: `style: rustfmt everything` in ripgrep touches 67 files and 4,020 lines, so its churn
+ * term alone came to `0.7 × log1p(4020) = 5.8` — larger than every other reward *combined*, and
+ * far larger than the 4.5 penalty meant to remove it. It ranked 8th-most-significant in the
+ * repository. The stated invariant above ("the penalties sum to more than any plausible reward
+ * total") was simply not true of the formula, because an unbounded term has no plausible total.
+ *
+ * Saturating at {@link SCALE_SATURATION} makes it true: scale can contribute at most
+ * `filesTouched + churn` = 1.5 of a maximum 12.4, so a single penalty is decisive against a
+ * commit that has nothing else going for it — which is exactly what a sweep is. It also says
+ * something defensible about the domain: past roughly fifty files, "bigger" has stopped carrying
+ * information about whether a change mattered.
  */
 export function significanceOf(
   input: SignificanceInput,
@@ -111,8 +140,8 @@ export function significanceOf(
   const has = (flag: CommitFlag): boolean => input.flags.includes(flag);
 
   let score =
-    weights.filesTouched * Math.log1p(input.filesTouched) +
-    weights.churn * Math.log1p(input.churn) +
+    weights.filesTouched * saturating(input.filesTouched, SCALE_SATURATION.files) +
+    weights.churn * saturating(input.churn, SCALE_SATURATION.churn) +
     weights.messageQuality * input.messageQuality +
     weights.pathRarity * input.pathRarity;
 

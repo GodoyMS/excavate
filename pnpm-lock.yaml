@@ -11,6 +11,12 @@ importers:
       '@eslint/js':
         specifier: ^9.39.1
         version: 9.39.5
+      '@types/node':
+        specifier: ^22.19.1
+        version: 22.20.1
+      '@wise-excavate/analysis':
+        specifier: workspace:*
+        version: link:packages/analysis
       '@wise-excavate/core':
         specifier: workspace:*
         version: link:packages/core
@@ -32,9 +38,6 @@ importers:
       '@wise-excavate/ui':
         specifier: workspace:*
         version: link:packages/ui
-      '@types/node':
-        specifier: ^22.19.1
-        version: 22.20.1
       eslint:
         specifier: ^9.39.1
         version: 9.39.5
@@ -117,6 +120,9 @@ importers:
 
   packages/server:
     dependencies:
+      '@hono/node-server':
+        specifier: ^2.1.0
+        version: 2.1.0(hono@4.13.0)
       '@wise-excavate/ai':
         specifier: workspace:*
         version: link:../ai
@@ -138,9 +144,6 @@ importers:
       '@wise-excavate/store':
         specifier: workspace:*
         version: link:../store
-      '@hono/node-server':
-        specifier: ^2.1.0
-        version: 2.1.0(hono@4.13.0)
       hono:
         specifier: ^4.13.0
         version: 4.13.0

@@ -17,11 +17,13 @@ import {
   ExcavateError,
   NotImplementedError,
   TIERS,
+  fromDate,
   isExcavateError,
 } from '@wise-excavate/core';
 import type { RepoSession } from '@wise-excavate/server';
-import { createServer, openSession } from '@wise-excavate/server';
+import { buildStatsReport, createServer, openSession } from '@wise-excavate/server';
 import { skeletonPage } from '@wise-excavate/ui';
+import { renderStats, statsAsJson, styleFor } from './stats.js';
 import { Command, CommanderError, InvalidArgumentError } from 'commander';
 
 import {
@@ -234,7 +236,17 @@ export type IndexableSession = Pick<RepoSession, 'bus' | 'summary' | 'ensureInde
  * Exported for the test that asserts exactly that, which is the only way to prove the
  * bus wiring without starting a daemon.
  */
-export async function indexWith(session: IndexableSession, io: CliIo): Promise<void> {
+export async function indexWith(
+  session: IndexableSession,
+  io: CliIo,
+  /**
+   * `excavate stats` opens with the same counts the closing line carries, so printing both
+   * puts the repository's headline on screen twice — once as the tail of the walk and again
+   * four lines later as the head of the report. A caller that renders its own header says so
+   * here rather than having the reader wonder which of the two numbers is the real one.
+   */
+  options: { readonly closingSummary?: boolean } = {},
+): Promise<void> {
   const printer = createIndexProgressPrinter((line) => {
     io.out(`${line}\n`);
   });
@@ -247,7 +259,7 @@ export async function indexWith(session: IndexableSession, io: CliIo): Promise<v
     unsubscribe();
   }
   const summary = session.summary();
-  io.out(`${formatIndexSummary(summary)}\n`);
+  if (options.closingSummary !== false) io.out(`${formatIndexSummary(summary)}\n`);
   // On stderr, not stdout: the honest-degradation contract of Part 7 §7.7 has to survive
   // `excavate index > log.txt`. A caveat that can be piped away silently is not a caveat.
   // This fires on every M0 run, because M0 never builds the analysis tier.
@@ -342,6 +354,42 @@ async function runOpen(io: CliIo, path: string, port: number): Promise<number> {
   }
 }
 
+/**
+ * `excavate stats` — M1's public artifact.
+ *
+ * Indexes if needed, then reports. Indexing first rather than refusing on a cold index is the
+ * whole "one command, no configuration" promise of ROADMAP §1.1: a stranger runs this against a
+ * repository they just cloned and it works, without having to learn that `index` exists.
+ */
+async function runStats(io: CliIo, path: string, asJson: boolean): Promise<number> {
+  const session = await openSession({ repoRoot: resolve(path), port: 0 });
+  try {
+    if (session.store.commits.count() === 0) {
+      /* Progress goes to stderr while the report goes to stdout, so `excavate stats --json |
+         jq` works on a cold index without the walk's output corrupting the document. */
+      await indexWith(session, { out: io.err, err: io.err }, { closingSummary: false });
+    }
+    /* The daemon assembles the document; this function only renders it. Boundary rule B4
+         with the CLI counted as a presentation surface — and `check:deps` enforces it, because
+         `wise-excavate` does not depend on `@wise-excavate/store` and therefore cannot query
+         the index even by accident. */
+    const report = buildStatsReport(session, fromDate(new Date()));
+    io.out(
+      asJson
+        ? statsAsJson(report)
+        : `${renderStats(report, styleFor(isTty(), process.env))}\n`,
+    );
+    return 0;
+  } finally {
+    session.store.close();
+  }
+}
+
+/** `process.stdout.isTTY` is `undefined` rather than `false` when piped. */
+function isTty(): boolean {
+  return process.stdout.isTTY === true;
+}
+
 /** Wired into the program so `--help` documents the real surface, and no further. */
 function deferred(spec: CommandSpec): () => never {
   return () => {
@@ -404,7 +452,9 @@ function buildProgram(io: CliIo, outcome: { code: number }): Command {
       command
         .argument('[path]', 'Repository to report on', '.')
         .option('--json', 'Emit the report as JSON instead of a table')
-        .action(deferred(COMMANDS.stats));
+        .action(async (path: string, options: { readonly json?: boolean }) => {
+          await runStats(io, path, options.json === true);
+        });
     },
     why: (command) => {
       command

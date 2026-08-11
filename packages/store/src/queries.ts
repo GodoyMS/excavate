@@ -256,8 +256,17 @@ export function createQueries(db: BetterSqlite3.Database): Queries {
 
   const selectOwnership = db.prepare<
     [number],
-    { bus_factor: number; entropy: number; is_island: number }
-  >('SELECT bus_factor, entropy, is_island FROM ownership WHERE file_id = ?');
+    {
+      top_person: number | null;
+      top_share: number;
+      bus_factor: number;
+      entropy: number;
+      is_island: number;
+    }
+  >(
+    `SELECT top_person, top_share, bus_factor, entropy, is_island
+       FROM ownership WHERE file_id = ?`,
+  );
   /* Shares are recomputed from `knowledge` rather than stored per person: the ownership row
      holds the *summary* (top share, bus factor, entropy) and the distribution is derivable, so
      storing both would be two representations of one fact that can disagree. */
@@ -277,17 +286,38 @@ export function createQueries(db: BetterSqlite3.Database): Queries {
       complexity: number;
       recency: number;
       fix_density: number;
+      change_count: number;
     }
   >(
-    `SELECT file_id, score, churn, complexity, recency, fix_density
+    `SELECT file_id, score, churn, complexity, recency, fix_density, change_count
        FROM hotspots ORDER BY score DESC, file_id LIMIT ?`,
   );
   const selectIslands = db.prepare<
     [number],
-    { file_id: number; bus_factor: number; entropy: number }
+    {
+      file_id: number;
+      top_person: number | null;
+      top_share: number;
+      bus_factor: number;
+      entropy: number;
+    }
   >(
-    `SELECT file_id, bus_factor, entropy FROM ownership
-      WHERE is_island = 1 ORDER BY top_share DESC, file_id LIMIT ?`,
+    /* Ordered by *consequence*, not by share. Every island has `top_share` at or near 1.0 by
+       definition — that is what makes it an island — so ordering by it is effectively arbitrary,
+       and a `fuzz/.gitignore` would outrank a 900-line module nobody else understands. The
+       hotspot score is the right tiebreak: it already encodes churn, size, recency, and fix
+       density, which is exactly "how much will it hurt when this file needs changing". Files
+       with no hotspot row (excluded as generated, or never ranked) sort last rather than
+       vanishing, because a genuine island in a generated file is still worth seeing once. */
+    /* `died_commit IS NULL` — a file that no longer exists at HEAD is excluded. Its knowledge
+       genuinely is concentrated in one departed person, but nobody can act on that: there is no
+       file to change, and it would also render as "file 284" since a dead file has no current
+       path. Reporting it crowds out islands someone can do something about. */
+    `SELECT o.file_id, o.top_person, o.top_share, o.bus_factor, o.entropy FROM ownership o
+       JOIN files f ON f.id = o.file_id
+       LEFT JOIN hotspots h ON h.file_id = o.file_id
+      WHERE o.is_island = 1 AND f.died_commit IS NULL
+      ORDER BY COALESCE(h.score, -1) DESC, o.file_id LIMIT ?`,
   );
 
   const selectPersonById = db.prepare<[number], PersonRow>(
@@ -486,6 +516,8 @@ export function createQueries(db: BetterSqlite3.Database): Queries {
       if (row === undefined) return null;
       return {
         file,
+        topPerson: row.top_person === null ? null : (row.top_person as PersonId),
+        topShare: row.top_share,
         shares: selectShares.all(file, file).map((s) => ({
           person: s.person_id as PersonId,
           share: s.share,
@@ -499,6 +531,7 @@ export function createQueries(db: BetterSqlite3.Database): Queries {
       return selectHotspots.all(limit).map((row) => ({
         file: row.file_id as FileId,
         score: row.score,
+        changeCount: row.change_count,
         factors: {
           churn: row.churn,
           complexity: row.complexity,
@@ -510,6 +543,8 @@ export function createQueries(db: BetterSqlite3.Database): Queries {
     knowledgeIslands(limit: number): readonly Ownership[] {
       return selectIslands.all(limit).map((row) => ({
         file: row.file_id as FileId,
+        topPerson: row.top_person === null ? null : (row.top_person as PersonId),
+        topShare: row.top_share,
         shares: selectShares.all(row.file_id, row.file_id).map((s) => ({
           person: s.person_id as PersonId,
           share: s.share,

@@ -39,6 +39,11 @@ const VENDORED_SEGMENTS: readonly string[] = [
 
 const GENERATED_SEGMENTS: readonly string[] = [
   'dist',
+  /* `generated`, not only `gen`: rust-analyzer's top two hotspots were
+     `crates/syntax/src/ast/generated/nodes.rs` and `crates/ide-db/src/generated/lints.rs`, both
+     of which are emitted by a codegen step in that repository's own build. A `generated/`
+     directory is about as explicit as a codebase gets about what is inside it. */
+  'generated',
   'build',
   'out',
   'target',
@@ -56,6 +61,17 @@ const GENERATED_FILE_PATTERNS: readonly RegExp[] = [
   /_pb2?\.py$/i,
   /\.d\.ts\.map$/i,
   /\.(?:map)$/i,
+  /* Source-mirrored HTML: `src/hir/lib.rs.html` is rustdoc's rendering of `lib.rs`, and the
+     same shape covers pydoc, godoc, and jsdoc output. rust-analyzer once had it as its
+     second-highest hotspot on a single enormous commit. Matching `<something>.<source-ext>.html`
+     rather than `.html` outright is what keeps a hand-written `index.html` out of it — that is
+     real source and someone maintains it. */
+  /\.(?:rs|py|go|js|ts|rb|java|c|cc|cpp|h|hpp)\.html?$/i,
+  /* `generated` as a whole token in the *filename*, which is how a project marks codegen output
+     when it does not have a directory for it: `generated_lints.rs`, `lints.generated.ts`,
+     `schema-generated.go`. Delimiters on both sides are required so `regenerate.py` — a script
+     that *does* the generating and is hand-written — is not swept up with its own output. */
+  /(?:^|[._-])generated(?:[._-]|$)/i,
 ];
 
 /**
@@ -229,6 +245,39 @@ export const BULK_FILE_THRESHOLD = 30;
  */
 export const CODEMOD_UNIFORMITY = 0.35;
 
+/**
+ * Commits that announce themselves as a mechanical pass.
+ *
+ * Uniformity alone is not enough, and ripgrep proved it: `style: rustfmt everything` touches 67
+ * files, and because rustfmt reflows some files by two lines and others by two hundred its
+ * coefficient of variation sits well above {@link CODEMOD_UNIFORMITY}. It scored into the top
+ * eight most significant commits in the repository — precisely the outcome §8.5.1 exists to
+ * prevent. Content-based detection needs hunks and is M2, but this commit is not hiding: it says
+ * what it is in the subject line.
+ *
+ * Two tiers, because the risk of a false positive differs:
+ *
+ * - **Tool names** match anywhere in the subject. `rustfmt`, `gofmt`, `prettier`, `dos2unix` are
+ *   not words that appear in a description of authored work.
+ * - **Generic verbs** must lead the subject, after an optional conventional-commit prefix.
+ *   "reformat the config loader" is a formatting commit; "fix crash when reformatting output" is
+ *   a bug fix that happens to contain the word, and anchoring is what tells them apart.
+ *
+ * Deliberately excluded: `refactor`, `cleanup`, `tidy`, `simplify`, `rename`. Every one of them
+ * describes work a person did by hand and thought about, and demoting those would cost the
+ * report the commits it most wants to surface.
+ */
+const MECHANICAL_TOOL =
+  /\b(?:rustfmt|gofmt|goimports|clang-format|dos2unix|unix2dos|autopep8|yapf|ktlint|swiftformat|prettier|black|isort|eslint --fix|codemod|jscodeshift|2to3)\b/i;
+
+const MECHANICAL_VERB =
+  /^(?:(?:style|chore|format|fmt|ci|build|refactor)(?:\([^)]*\))?!?:\s*)?(?:re-?format|re-?indent|reflow|apply\s+(?:formatting|the\s+formatter|code\s+style)|run\s+(?:the\s+)?(?:formatter|linter|fmt)|normali[sz]e\s+(?:whitespace|line\s+endings|indentation|eol)|strip\s+trailing\s+whitespace|fix\s+(?:up\s+)?(?:whitespace|indentation|line\s+endings|eol)|whitespace|convert\s+(?:tabs|crlf|line\s+endings)|bump\s+copyright|update\s+licen[cs]e\s+headers?)\b/i;
+
+export function announcesMechanicalPass(subject: string): boolean {
+  const trimmed = subject.trim();
+  return MECHANICAL_TOOL.test(trimmed) || MECHANICAL_VERB.test(trimmed);
+}
+
 export interface CommitClassification {
   readonly flags: readonly CommitFlag[];
   /** Files that are not generated, vendored, or lockfiles — what significance actually scores. */
@@ -280,9 +329,14 @@ export function classifyCommit(
 
   /* Only `bulk-mechanical` exists as a flag, not a bare "bulk". Scale alone is not noise:
      a genuine large refactor touches many files and is one of the most interesting commits
-     in a repository. What earns the penalty is scale *plus* uniformity — every file changed
-     by about the same amount, which is the shape of a codemod and not of authored work. */
-  if (changes.length >= BULK_FILE_THRESHOLD && isUniform(churnPerFile)) {
+     in a repository. What earns the penalty is scale *plus* evidence of mechanism — either
+     uniform per-file churn (the codemod shape) or a subject that names the tool that did it.
+     The scale gate applies to both, so reformatting one file is never penalised: it would not
+     have ranked anyway, and the flag would be claiming more than the evidence supports. */
+  if (
+    changes.length >= BULK_FILE_THRESHOLD &&
+    (isUniform(churnPerFile) || announcesMechanicalPass(subject))
+  ) {
     flags.add('bulk-mechanical');
   }
 

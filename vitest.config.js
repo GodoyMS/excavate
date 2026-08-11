@@ -39,26 +39,26 @@ export default defineConfig({
     reporters: ['default'],
 
     /**
-     * Bounded well below the core count on purpose.
+     * Child processes, not worker threads — and this is a correctness setting, not a tuning one.
      *
-     * The fixture suites drive real `git` through **synchronous** spawns, so a worker
-     * running one of them blocks its own event loop for seconds at a time and cannot
-     * service vitest's reporter RPC. Left unbounded, vitest starts one worker per core,
-     * every one of them is CPU-bound on a `git` child process, and the run dies with
-     * `[vitest-worker]: Timeout calling "onTaskUpdate"` — **all tests passing, exit code
-     * 1**. That is the worst possible failure shape: a green suite and a red build.
+     * Two of this project's deliberate choices combine badly with vitest's default `threads`
+     * pool. `better-sqlite3` is **synchronous** by design (Part 13: the index is a local file and
+     * an async driver would buy nothing but colour), and the fixture builder drives real `git`
+     * through **synchronous** spawns. A worker thread doing either blocks its own event loop for
+     * seconds, and vitest's reporter RPC lives on that same event loop — so the run dies with
+     * `[vitest-worker]: Timeout calling "onTaskUpdate"` while **every test passes and the exit
+     * code is 1**. A green suite and a red build is the worst failure shape there is: it looks
+     * like flake, so the reflex is to re-run rather than to read.
      *
-     * Three is not a guess: unbounded and `--maxWorkers=6` both reproduced it on a
-     * 10-core machine under load, `--maxWorkers=3` did not, and the whole suite still
-     * finishes in about a minute because the slow files are I/O-bound on `git` rather
-     * than on us.
-     *
-     * The real fix is for the fixture builder to spawn asynchronously; until then this
-     * keeps the exit code honest. CI never hit it (its runners are less contended), which
-     * is exactly why it would have been a miserable intermittent failure to diagnose
-     * later.
+     * `maxWorkers: 3` was the first attempt and it only moved the threshold — adding one more
+     * fixture-heavy suite brought the failure straight back, which is what showed the problem was
+     * structural rather than a matter of degree. With `pool: 'forks'` each file gets its own
+     * process and its own event loop, so no amount of synchronous work in one file can starve
+     * another's RPC. The concurrency cap then goes back to being about CPU, and the fixture
+     * builder's synchronous spawns stop being a latent build-breaker.
      */
-    maxWorkers: 3,
+    pool: 'forks',
+    maxWorkers: 4,
     // The end-to-end test builds a 100-commit repository with real `git` and then indexes
     // it; the default 5s timeout is not enough on a cold cache or a slow macOS runner.
     testTimeout: 120_000,

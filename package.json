@@ -28,6 +28,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@wise-excavate/analysis": "workspace:*",
     "@wise-excavate/core": "workspace:*",
     "@wise-excavate/git": "workspace:*",
     "@wise-excavate/git-fixtures": "workspace:*",

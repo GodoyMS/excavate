@@ -789,7 +789,30 @@ export function createRepoBuilder(config: BuilderConfig): RepoBuilder {
       const replay = new Replay(path, config);
       try {
         replay.init();
-        for (const step of steps) replay.step(step);
+        for (const step of steps) {
+          replay.step(step);
+          /**
+           * Yield to the event loop between commits.
+           *
+           * Every git call here is `spawnSync`, which is right for the DSL — construction is
+           * strictly sequential and synchronous keeps stack traces on the offending line — but it
+           * means a large fixture blocks its thread for tens of seconds without interruption. Under
+           * vitest that thread is also the one answering the reporter's RPC, so the run dies with
+           * `[vitest-worker]: Timeout calling "onTaskUpdate"` while **every test passes and the
+           * exit code is 1**: a green suite and a red build, which reads as flake and gets re-run
+           * rather than read.
+           *
+           * `pool: 'forks'` in `vitest.config.js` stops one test file starving another's RPC, but
+           * nothing stops a file starving its own — which is what a 240-commit fixture does. One
+           * macrotask turn per commit is enough for the ping to be answered, and it costs nothing
+           * measurable next to a `git commit`. Making `git()` itself async would also work and is
+           * the larger fix, but `git` is exported from a published package and that is a breaking
+           * change for no gain in the DSL's ergonomics.
+           */
+          await new Promise((resolve) => {
+            setImmediate(resolve);
+          });
+        }
       } catch (cause) {
         // A build that throws never returns a `FixtureRepo`, so the caller has no
         // `cleanup()` to call and the directory would leak for the life of the machine.

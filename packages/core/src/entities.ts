@@ -189,7 +189,20 @@ export interface Knowledge {
 
 export interface Ownership {
   readonly file: FileId;
-  /** Normalised knowledge distribution, descending. */
+  /**
+   * The top owner, chosen **with** decay applied.
+   *
+   * Carried explicitly rather than read off `shares[0]`, because the two answer different
+   * questions and disagreed in practice: on `ripgrep`'s `searcher/mmap.rs`, `shares[0]` is the
+   * author with the most raw churn (accumulated 37.8, still active) while the decayed top owner
+   * is someone with 4.8 who touched it far more recently — and it is the *decayed* owner the
+   * island rule was evaluated against. Reporting `shares[0]` as the owner therefore named
+   * someone active beside the words "has stopped contributing".
+   */
+  readonly topPerson: PersonId | null;
+  /** The top owner's decayed share, 0..1. */
+  readonly topShare: number;
+  /** The raw, **undecayed** knowledge distribution, descending. For showing the full picture. */
   readonly shares: readonly OwnershipShare[];
   /** Fewest people whose combined knowledge reaches 50%. */
   readonly busFactor: number;
@@ -218,6 +231,8 @@ export interface Coupling {
 export interface Hotspot {
   readonly file: FileId;
   readonly score: number;
+  /** Raw change count, so the UI can say "312 changes" beside the normalised factors. */
+  readonly changeCount: number;
   readonly factors: {
     readonly churn: number;
     readonly complexity: number;

@@ -18,7 +18,7 @@
 import type { ErrorPayload } from './errors.js';
 import type { Oid, RepoId } from './ids.js';
 import type { Timestamp } from './time.js';
-import type { HistoryProjection, IndexState, Tier } from './vocabulary.js';
+import type { HistoryProjection, IndexState, MergeSource, Tier } from './vocabulary.js';
 
 /** Bumped only on a breaking change to a shipped route or event. */
 export const API_VERSION = 1;
@@ -166,3 +166,63 @@ export type ServerEvent =
     };
 
 export type ServerEventType = ServerEvent['type'];
+
+/* ── The stats report ──────────────────────────────────────────────────────── */
+
+/**
+ * Everything `excavate stats` and M3's Overview both display.
+ *
+ * **Assembled by the daemon, rendered by a presentation surface** — which is boundary rule B4
+ * with the CLI included in "UI". The alternative, letting each surface query the store itself,
+ * is how the terminal and the browser start disagreeing about the same repository; and Part 7
+ * §7.3 names that divergence as the specific thing B4 exists to prevent. It is also why this
+ * type lives in `core`: the CLI must not depend on `store` to read it.
+ */
+export interface StatsReport {
+  readonly summary: RepoSummary;
+  readonly knowledgeIslands: readonly IslandReport[];
+  readonly hotspots: readonly HotspotReport[];
+  readonly significantCommits: readonly CommitSummaryDto[];
+  readonly people: readonly PersonReport[];
+  /**
+   * The cast's tail: people not in {@link people}, and the commits they hold between them.
+   *
+   * Counted here rather than derived by the renderer from `summary.commitCount`, because the two
+   * differ by every bot commit — on `rust-analyzer` that is bors's 2,786, so subtracting the
+   * listed humans from the repository total credited the tail with a bot's entire output.
+   */
+  readonly otherPeople: number;
+  readonly otherCommits: number;
+  /** The instant knowledge decay was measured from, so a consumer can say "as of". */
+  readonly generatedFor: Timestamp;
+}
+
+export interface IslandReport {
+  readonly path: string;
+  readonly busFactor: number;
+  readonly entropy: number;
+  readonly ownerName: string | null;
+  readonly ownerLastSeen: Timestamp | null;
+  /** The top owner's decayed share, 0..1. */
+  readonly topShare: number;
+}
+
+/** The factors travel with the score, because Part 8 §8.5.3 forbids showing one without them. */
+export interface HotspotReport {
+  readonly path: string;
+  readonly score: number;
+  readonly churn: number;
+  readonly complexity: number;
+  readonly recency: number;
+  readonly fixDensity: number;
+  readonly changeCount: number;
+}
+
+export interface PersonReport {
+  readonly name: string;
+  readonly email: string;
+  readonly commits: number;
+  readonly firstSeen: Timestamp;
+  readonly lastSeen: Timestamp;
+  readonly mergeSource: MergeSource;
+}

@@ -227,6 +227,23 @@ export function createRenameResolver(): RenameResolver {
           buried.set(to, displaced);
         }
         open(row, to, at);
+        /**
+         * Reclassify from the *current* path.
+         *
+         * `flags` and `language` describe what a file is, and a rename can change both.
+         * rust-analyzer's `crates/ide-db/src/generated/lints.rs` was born as
+         * `crates/completion/src/generated_lint_completions.rs` and moved four times; because it
+         * was classified once at birth it carried no `generated` flag for its whole life and
+         * ranked as the repository's top hotspot — a codegen artefact presented as the most
+         * dangerous file in the codebase. `language` has the same exposure the moment a file moves
+         * from `.js` to `.ts`.
+         *
+         * Replaced rather than unioned. A union can only accumulate, so a file promoted *out* of
+         * `generated/` into hand-maintained source would stay flagged for good. These flags
+         * answer "what is this file now"; the alias chain is what remembers where it has been.
+         */
+        row.flags = classifyPath(to);
+        row.language = languageOf(to);
         return row;
       }
 

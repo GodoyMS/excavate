@@ -322,7 +322,6 @@ describe('run', () => {
 
   it('names the milestone rather than faking output for a command not yet built', async () => {
     const notYet: readonly { spec: CommandSpec; argv: readonly string[] }[] = [
-      { spec: COMMANDS.stats, argv: ['stats'] },
       { spec: COMMANDS.why, argv: ['why', 'src/db.ts:142'] },
       { spec: COMMANDS.doctor, argv: ['doctor'] },
     ];
@@ -400,7 +399,7 @@ describe('run', () => {
       expect((await invoke(['--depth=3'])).code).toBe(1);
       expect((await invoke(['stat'])).code).toBe(1);
       expect((await invoke(['index', '--depth=3'])).code).toBe(1);
-      expect((await invoke(['stats'])).code).toBe(69);
+      expect((await invoke(['doctor'])).code).toBe(69);
       expect(exit).not.toHaveBeenCalled();
     } finally {
       exit.mockRestore();
