@@ -1,5 +1,8 @@
 # Excavate
 
+[![CI](https://github.com/GodoyMS/excavate/actions/workflows/ci.yml/badge.svg)](https://github.com/GodoyMS/excavate/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
 > **Git tells you what changed. Excavate tells you why.**
 
 Excavate turns any Git repository into a story you can read, a map you can explore, and
