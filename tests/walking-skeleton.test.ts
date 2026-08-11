@@ -27,7 +27,13 @@ import type {
   CommitListResponse,
   RepoSummary,
 } from '@wise-excavate/core';
-import { AUTH_SCHEME, DEFAULT_PAGE_SIZE, TIERS, parseOid } from '@wise-excavate/core';
+import {
+  AUTH_SCHEME,
+  DEFAULT_PAGE_SIZE,
+  TIERS,
+  fileId,
+  parseOid,
+} from '@wise-excavate/core';
 import type { FixtureRepo } from '@wise-excavate/git-fixtures';
 import { repo } from '@wise-excavate/git-fixtures';
 import type { ExcavateServer } from '@wise-excavate/server';
@@ -117,13 +123,26 @@ describe('indexing writes the history to SQLite', () => {
     expect(stored?.subject).toBe(NARRATED);
   });
 
-  it('is durably marked ready, and says which tier it did not build', () => {
-    // Honest degradation (Part 7 §7.7): M0 builds `metadata` only, and an index missing a
-    // whole tier must say so rather than present itself as complete.
+  it('is durably marked ready, with both tiers built and no partial badge', () => {
+    /* At M0 this asserted a `tier-failed` badge naming `analysis`, which was the honest
+       answer when nothing built that tier. M1 builds it, so a badge here would report a
+       complete index as incomplete — the mirror image of the failure the badge exists for. */
     expect(server.session.store.meta.indexState()).toBe('ready');
     const summary = server.session.summary();
     expect(summary.indexState).toBe('ready');
-    expect(summary.partial?.skipped).toContain('analysis');
+    expect(summary.partial).toBeNull();
+  });
+
+  it('produces analysis rollups, not just ground truth', () => {
+    // The tier is only real if it wrote something. A fixture of 100 single-file commits by
+    // one author has exactly one owner per file, so every file is a bus-factor-1 file — and
+    // none is an island, because that author's last commit is the fixture's own clock.
+    const store = server.session.store;
+    expect(store.commits.mostSignificant(5).length).toBeGreaterThan(0);
+    expect(store.commits.mostSignificant(5)[0]?.significance).toBeGreaterThan(0);
+    expect(store.rollups.hotspots(5).length).toBeGreaterThan(0);
+    const owned = store.rollups.ownership(fileId(1));
+    expect(owned?.busFactor).toBe(1);
   });
 
   it('recovers the history’s time span from the index, not from a guess', () => {

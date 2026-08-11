@@ -361,6 +361,24 @@ function fakeStore(options: FakeStoreOptions = {}): {
         replaceTags() {
           calls.push('replaceTags');
         },
+        /* The analysis-tier writers. Recorded rather than implemented: the walk never calls
+           them — analysis is a second pass driven by the composition root — so their presence
+           here exists to satisfy the interface and to make it visible if that ever changes. */
+        replaceKnowledge(rows) {
+          calls.push(`replaceKnowledge:${rows.length}`);
+        },
+        replaceOwnership(rows) {
+          calls.push(`replaceOwnership:${rows.length}`);
+        },
+        replaceHotspots(rows) {
+          calls.push(`replaceHotspots:${rows.length}`);
+        },
+        setSignificance(rows) {
+          calls.push(`setSignificance:${rows.length}`);
+        },
+        recordAnalyzerRun(analyzer) {
+          calls.push(`recordAnalyzerRun:${analyzer}`);
+        },
         setIndexState(state) {
           calls.push(`setIndexState:${state}`);
           log.states.push(state);

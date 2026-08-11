@@ -32,6 +32,7 @@ import type {
   EvidenceBundle,
   FileEntity,
   FileId,
+  PersonId,
   Hotspot,
   Hunk,
   Ownership,
@@ -94,7 +95,19 @@ const CHANGE_COLUMNS =
   'commit_id, file_id, kind, old_path_id, new_path_id, similarity, ' +
   'insertions, deletions, is_binary';
 
-const FILE_COLUMNS = 'id, current_path, born_commit, died_commit, language, flags';
+const FILE_FIELDS = [
+  'id',
+  'current_path',
+  'born_commit',
+  'died_commit',
+  'language',
+  'flags',
+] as const;
+const FILE_COLUMNS = FILE_FIELDS.join(', ');
+/* Qualified, for the two path lookups that join `files` to `paths` — both tables have an `id`
+   and SQLite rejects the ambiguity rather than guessing. Derived from one list so the qualified
+   and unqualified forms cannot drift, which is the same reason `COMMIT_COLUMNS_QUALIFIED` exists. */
+const FILE_COLUMNS_QUALIFIED = FILE_FIELDS.map((field) => `f.${field}`).join(', ');
 
 const PERSON_COLUMNS =
   'id, canonical_name, canonical_email, first_seen, first_seen_tz, ' +
@@ -182,6 +195,34 @@ export function createQueries(db: BetterSqlite3.Database): Queries {
   );
   const selectChangesIn = db.prepare<[number], ChangeRow>(HOT_SQL.changesIn);
 
+  const selectMostSignificant = db.prepare<[number], CommitRow>(
+    `SELECT ${COMMIT_COLUMNS} FROM commits ORDER BY significance DESC, id DESC LIMIT ?`,
+  );
+  const generationOf = db
+    .prepare<[number], number>('SELECT generation FROM commits WHERE id = ?')
+    .pluck();
+  /**
+   * Ancestry by walking parent edges upward from the descendant.
+   *
+   * Bounded by `generation`: the recursion never visits a commit older than the candidate
+   * ancestor, which on a long history is the difference between touching a handful of rows and
+   * touching all of them. `commit_parents` is keyed `(child_id, ordinal)`, so each hop is an
+   * index seek rather than a scan.
+   */
+  const isAncestorOf = db
+    .prepare<[number, number, number], number>(
+      `WITH RECURSIVE up(id) AS (
+         SELECT ?
+         UNION
+         SELECT p.parent_id FROM commit_parents p
+           JOIN up ON up.id = p.child_id
+           JOIN commits c ON c.id = p.parent_id
+          WHERE c.generation >= (SELECT generation FROM commits WHERE id = ?)
+       )
+       SELECT EXISTS(SELECT 1 FROM up WHERE id = ?)`,
+    )
+    .pluck();
+
   const selectFileById = db.prepare<[number], FileRow>(
     `SELECT ${FILE_COLUMNS} FROM files WHERE id = ?`,
   );
@@ -193,6 +234,61 @@ export function createQueries(db: BetterSqlite3.Database): Queries {
     .prepare<[number], string>('SELECT path FROM paths WHERE id = ?')
     .pluck();
   const countFiles = db.prepare<[], number>('SELECT count(*) FROM files').pluck();
+  const selectFileByCurrentPath = db.prepare<[string], FileRow>(
+    `SELECT ${FILE_COLUMNS_QUALIFIED} FROM files f
+       JOIN paths p ON p.id = f.current_path
+      WHERE p.path = ?`,
+  );
+  /* Through the alias chain, and the half-open window is why: an alias covers `[from, to)`, so
+     a commit exactly at `to` belongs to the *next* segment. Using `<=` here would make a
+     renamed file resolve to two identities at the rename commit itself, breaking Part 8 §8.8's
+     first invariant at precisely the commit most likely to be queried. */
+  const selectFileByPathAt = db.prepare<[string, number, number], FileRow>(
+    `SELECT ${FILE_COLUMNS_QUALIFIED} FROM files f
+       JOIN file_aliases a ON a.file_id = f.id
+       JOIN paths p ON p.id = a.path_id
+      WHERE p.path = ? AND a.from_commit <= ? AND (a.to_commit IS NULL OR a.to_commit > ?)
+      LIMIT 1`,
+  );
+  const selectChangesTo = db.prepare<[number], ChangeRow>(
+    `SELECT ${CHANGE_COLUMNS} FROM changes WHERE file_id = ? ORDER BY commit_id`,
+  );
+
+  const selectOwnership = db.prepare<
+    [number],
+    { bus_factor: number; entropy: number; is_island: number }
+  >('SELECT bus_factor, entropy, is_island FROM ownership WHERE file_id = ?');
+  /* Shares are recomputed from `knowledge` rather than stored per person: the ownership row
+     holds the *summary* (top share, bus factor, entropy) and the distribution is derivable, so
+     storing both would be two representations of one fact that can disagree. */
+  const selectShares = db.prepare<[number, number], { person_id: number; share: number }>(
+    `SELECT k.person_id,
+            k.accumulated / (SELECT SUM(accumulated) FROM knowledge WHERE file_id = ?) AS share
+       FROM knowledge k
+      WHERE k.file_id = ?
+      ORDER BY share DESC, k.person_id`,
+  );
+  const selectHotspots = db.prepare<
+    [number],
+    {
+      file_id: number;
+      score: number;
+      churn: number;
+      complexity: number;
+      recency: number;
+      fix_density: number;
+    }
+  >(
+    `SELECT file_id, score, churn, complexity, recency, fix_density
+       FROM hotspots ORDER BY score DESC, file_id LIMIT ?`,
+  );
+  const selectIslands = db.prepare<
+    [number],
+    { file_id: number; bus_factor: number; entropy: number }
+  >(
+    `SELECT file_id, bus_factor, entropy FROM ownership
+      WHERE is_island = 1 ORDER BY top_share DESC, file_id LIMIT ?`,
+  );
 
   const selectPersonById = db.prepare<[number], PersonRow>(
     `SELECT ${PERSON_COLUMNS} FROM people WHERE id = ?`,
@@ -289,16 +385,33 @@ export function createQueries(db: BetterSqlite3.Database): Queries {
       return selectChangesIn.all(commit).map(toChange);
     },
 
-    mostSignificant(_limit: number): readonly Commit[] {
-      throw new NotImplementedError('CommitQueries.mostSignificant', 'M1');
+    mostSignificant(limit: number): readonly Commit[] {
+      /* No `WHERE flags = 0` filter, deliberately. Noise is excluded by *scoring*, not by
+         omission: the significance penalties exceed any plausible reward, so a codemod sinks
+         to zero and never reaches the top. Filtering here too would make the
+         anti-embarrassment test pass for the wrong reason — proving the filter works rather
+         than that the scoring does — and would hide the one case where a noise-flagged commit
+         legitimately ranks, a revert whose diff happens to be mechanical. */
+      // `hydrate` batches the parent edges into one statement; see its note on N+1.
+      return hydrate(selectMostSignificant.all(limit));
     },
 
     hunksIn(_commit: CommitId, _file: FileId): readonly Hunk[] {
       throw new NotImplementedError('CommitQueries.hunksIn', 'M2');
     },
 
-    isAncestor(_ancestor: CommitId, _descendant: CommitId): boolean {
-      throw new NotImplementedError('CommitQueries.isAncestor', 'M1');
+    isAncestor(ancestor: CommitId, descendant: CommitId): boolean {
+      /* Generation numbers give a *necessary* condition in constant time — a parent always has
+         a lower ordinal than its child — so `false` here is conclusive and free. `true` is not:
+         two commits on unrelated branches also satisfy it, which is why the walk up the parent
+         edges follows. Part 8 §8.7 asks for near-constant ancestry; it is exactly that for the
+         negative case, which is the one every time-window filter hits most often. */
+      if (ancestor === descendant) return true;
+      const ancestorGen = generationOf.get(ancestor);
+      const descendantGen = generationOf.get(descendant);
+      if (ancestorGen === undefined || descendantGen === undefined) return false;
+      if (ancestorGen >= descendantGen) return false;
+      return (isAncestorOf.get(descendant, ancestor, ancestor) ?? 0) === 1;
     },
   };
 
@@ -308,16 +421,24 @@ export function createQueries(db: BetterSqlite3.Database): Queries {
       return row === undefined ? null : toFileEntity(row, selectAliasesOf.all(id));
     },
 
-    byPath(_path: string, _at: CommitId | null): FileEntity | null {
-      throw new NotImplementedError('FileQueries.byPath', 'M1');
+    byPath(path: string, at: CommitId | null): FileEntity | null {
+      /* Resolved through the alias chain, which is the whole reason the chain exists: a
+         historical path must find the file it became. `at === null` asks "which file lives here
+         now"; a commit id asks "which lived here then", and for any renamed or resurrected path
+         those are different files. */
+      const row =
+        at === null
+          ? selectFileByCurrentPath.get(path)
+          : selectFileByPathAt.get(path, at, at);
+      return row === undefined ? null : toFileEntity(row, selectAliasesOf.all(row.id));
     },
 
     pathOf(id: PathId): string | null {
       return selectPath.get(id) ?? null;
     },
 
-    changesTo(_file: FileId): readonly Change[] {
-      throw new NotImplementedError('FileQueries.changesTo', 'M1');
+    changesTo(file: FileId): readonly Change[] {
+      return selectChangesTo.all(file).map(toChange);
     },
 
     count() {
@@ -360,29 +481,58 @@ export function createQueries(db: BetterSqlite3.Database): Queries {
   };
 
   const rollups: RollupQueries = {
-    ownership(_file: FileId): Ownership | null {
-      throw new NotImplementedError('RollupQueries.ownership', 'M1');
+    ownership(file: FileId): Ownership | null {
+      const row = selectOwnership.get(file);
+      if (row === undefined) return null;
+      return {
+        file,
+        shares: selectShares.all(file, file).map((s) => ({
+          person: s.person_id as PersonId,
+          share: s.share,
+        })),
+        busFactor: row.bus_factor,
+        entropy: row.entropy,
+        isKnowledgeIsland: row.is_island === 1,
+      };
     },
-    hotspots(_limit: number): readonly Hotspot[] {
-      throw new NotImplementedError('RollupQueries.hotspots', 'M1');
+    hotspots(limit: number): readonly Hotspot[] {
+      return selectHotspots.all(limit).map((row) => ({
+        file: row.file_id as FileId,
+        score: row.score,
+        factors: {
+          churn: row.churn,
+          complexity: row.complexity,
+          recency: row.recency,
+          fixDensity: row.fix_density,
+        },
+      }));
     },
-    knowledgeIslands(_limit: number): readonly Ownership[] {
-      throw new NotImplementedError('RollupQueries.knowledgeIslands', 'M1');
+    knowledgeIslands(limit: number): readonly Ownership[] {
+      return selectIslands.all(limit).map((row) => ({
+        file: row.file_id as FileId,
+        shares: selectShares.all(row.file_id, row.file_id).map((s) => ({
+          person: s.person_id as PersonId,
+          share: s.share,
+        })),
+        busFactor: row.bus_factor,
+        entropy: row.entropy,
+        isKnowledgeIsland: true,
+      }));
     },
     coupledWith(_file: FileId, _limit: number): readonly Coupling[] {
-      throw new NotImplementedError('RollupQueries.coupledWith', 'M1');
+      throw new NotImplementedError('RollupQueries.coupledWith', 'M2');
     },
     revertPairs(): readonly RevertPair[] {
-      throw new NotImplementedError('RollupQueries.revertPairs', 'M1');
+      throw new NotImplementedError('RollupQueries.revertPairs', 'M2');
     },
     eras(): readonly Era[] {
-      throw new NotImplementedError('RollupQueries.eras', 'M1');
+      throw new NotImplementedError('RollupQueries.eras', 'M5');
     },
     releases(): readonly Release[] {
-      throw new NotImplementedError('RollupQueries.releases', 'M1');
+      throw new NotImplementedError('RollupQueries.releases', 'M4');
     },
     timelineBuckets(_granularity: 'day' | 'week' | 'month'): readonly TimelineBucket[] {
-      throw new NotImplementedError('RollupQueries.timelineBuckets', 'M1');
+      throw new NotImplementedError('RollupQueries.timelineBuckets', 'M4');
     },
   };
 

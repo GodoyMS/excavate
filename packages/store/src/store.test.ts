@@ -1305,15 +1305,8 @@ describe('the deferred query surface', () => {
   it('names the milestone that will implement each stub, rather than returning empty', () => {
     const store = memoryStore();
     const deferred: readonly (readonly [string, () => unknown])[] = [
-      ['commits.mostSignificant', () => store.commits.mostSignificant(5)],
       ['commits.hunksIn', () => store.commits.hunksIn(commitId(1), fileId(1))],
-      ['commits.isAncestor', () => store.commits.isAncestor(commitId(1), commitId(2))],
-      ['files.byPath', () => store.files.byPath('a.ts', null)],
-      ['files.changesTo', () => store.files.changesTo(fileId(1))],
       ['search.paths', () => store.search.paths('a', 5)],
-      ['rollups.ownership', () => store.rollups.ownership(fileId(1))],
-      ['rollups.hotspots', () => store.rollups.hotspots(5)],
-      ['rollups.knowledgeIslands', () => store.rollups.knowledgeIslands(5)],
       ['rollups.coupledWith', () => store.rollups.coupledWith(fileId(1), 5)],
       ['rollups.revertPairs', () => store.rollups.revertPairs()],
       ['rollups.eras', () => store.rollups.eras()],
