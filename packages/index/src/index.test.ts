@@ -865,9 +865,15 @@ describe('progress reporting', () => {
     });
 
     expect(progress.at(-1)?.tier).toBe('analysis');
-    expect(progress.at(-1)?.note).toMatch(/M1/);
-    expect(log.meta.get(META_KEYS.partialReason)).toBe('tier-failed');
-    expect(log.meta.get(META_KEYS.partialSkipped)).toMatch(/analysis/);
+    /* No longer "not implemented before M1": at M1 the tier exists, it is just not *here*.
+       Asking the walk for it is a caller mistake, and the note says which caller. */
+    expect(progress.at(-1)?.note).toMatch(/second pass/);
+    /* And crucially it does *not* mark the index partial for it. At M0 asking the walk for
+       `analysis` earned a `tier-failed` badge, because nothing built that tier. Now something
+       does — just not the walk — so a badge here would report a complete index as incomplete,
+       which is the mirror image of the failure the badge exists to prevent. */
+    expect(log.meta.get(META_KEYS.partialReason)).toBe('');
+    expect(log.meta.get(META_KEYS.partialSkipped)).toBe('');
     expect(log.states).toEqual(['walking', 'ready']);
   });
 

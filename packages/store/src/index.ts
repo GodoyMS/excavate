@@ -21,6 +21,12 @@
  */
 
 import type {
+  AnalysisQueries,
+  HotspotWrite,
+  KnowledgeWrite,
+  OwnershipWrite,
+} from './analysis.js';
+import type {
   Commit,
   CommitId,
   Confidence,
@@ -45,6 +51,7 @@ import type {
   Timestamp,
   Change,
   BundleHash,
+  AnalyzerId,
 } from '@wise-excavate/core';
 
 import { latestSchemaVersion, migrations } from './migrations/index.js';
@@ -163,6 +170,26 @@ export interface Transaction {
   replaceTags(rows: readonly Tag[]): void;
   setIndexState(state: IndexState): void;
   setMeta(key: string, value: string): void;
+
+  /* ── Analysis rollups (schema v2, written by the analysis tier) ───────────── */
+
+  /**
+   * Replace the whole knowledge table.
+   *
+   * Wholesale, not merged: an analyzer owns its entire output, and a merge would leave rows
+   * the current run no longer produces — a contributor whose knowledge has fully decayed, or
+   * a file that a corrected rename resolution folded into another. Every one of those stale
+   * rows inflates a bus factor, silently, which is the failure this product cannot have.
+   */
+  replaceKnowledge(rows: readonly KnowledgeWrite[]): void;
+  replaceOwnership(rows: readonly OwnershipWrite[]): void;
+  replaceHotspots(rows: readonly HotspotWrite[]): void;
+  /** Significance is scored after the walk, over stored rows, so it is an update. */
+  setSignificance(
+    rows: readonly { readonly commit: CommitId; readonly score: number }[],
+  ): void;
+  /** Records that an analyzer ran, at which version and through which commit (Part 7 §7.2.3). */
+  recordAnalyzerRun(analyzer: AnalyzerId, version: number, throughOid: string): void;
 }
 
 export interface IntegrityReport {
@@ -211,6 +238,8 @@ export interface Store {
   readonly search: SearchQueries;
   readonly bundles: BundleCache;
   readonly meta: MetaQueries;
+  /** The streaming scan and rollup reads the analysis tier runs on. */
+  readonly analysis: AnalysisQueries;
 }
 
 export interface OpenStoreOptions {
@@ -225,6 +254,14 @@ export interface OpenStoreOptions {
  * store. Implemented in `./store.ts`; re-exported here so this file stays the contract
  * and nothing outside the package ever imports a submodule.
  */
+export type {
+  AnalysisQueries,
+  ChangeFact,
+  CommitFact,
+  HotspotWrite,
+  KnowledgeWrite,
+  OwnershipWrite,
+} from './analysis.js';
 export { openStore } from './store.js';
 
 /** The ordered migration list. `docs/schema.md` is generated from it. */

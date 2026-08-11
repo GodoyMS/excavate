@@ -30,6 +30,7 @@ import {
   latestSchemaVersion,
   migrations,
 } from './migrations/index.js';
+import { createAnalysisQueries } from './analysis.js';
 import type { Queries } from './queries.js';
 import { createQueries } from './queries.js';
 import { createTransactionApi } from './writes.js';
@@ -191,6 +192,8 @@ export function openStore(options: OpenStoreOptions): Store {
     rollups: queries.rollups,
     search: queries.search,
     bundles: queries.bundles,
+
+    analysis: createAnalysisQueries(db),
 
     meta: {
       get(key: string): string | null {

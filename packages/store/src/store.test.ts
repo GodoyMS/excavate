@@ -245,7 +245,8 @@ describe('storage layout', () => {
   });
 
   it('starts at schema version 1', () => {
-    expect(SCHEMA_VERSION).toBe(1);
+    // v2 adds the analysis rollups (knowledge, ownership, hotspots, analyzer_runs).
+    expect(SCHEMA_VERSION).toBe(2);
   });
 
   it('batches writes at the size the walk flushes on', () => {
@@ -309,14 +310,7 @@ describe('migrations', () => {
     open(path);
     inspect(path, (db) => {
       const tables = tableNames(db);
-      for (const deferred of [
-        'hunks',
-        'ownership',
-        'coupling',
-        'hotspots',
-        'eras',
-        'timeline_buckets',
-      ]) {
+      for (const deferred of ['hunks', 'coupling', 'eras', 'timeline_buckets']) {
         expect(tables).not.toContain(deferred);
       }
     });

@@ -20,7 +20,7 @@ import type {
   Ownership,
   RevertPair,
 } from '@wise-excavate/core';
-import { NotImplementedError, analyzerId } from '@wise-excavate/core';
+import { ExcavateError, NotImplementedError, analyzerId } from '@wise-excavate/core';
 import type { Store } from '@wise-excavate/store';
 
 export interface AnalysisContext {
@@ -53,42 +53,19 @@ export const ANALYZER_IDS = {
 
 /* ── Significance (Part 8 §8.5.1) ──────────────────────────────────────────── */
 
-/**
- * The ten rewards and five penalties of the significance formula.
- *
- * **The penalties are as important as the rewards.** Without them, "the most
- * significant commits in this repo" reliably returns the Prettier migration, the
- * license-header sweep, and a lockfile refresh — which is exactly how this feature
- * fails in every naive implementation.
- *
- * Values are tuned in M1 against a hand-labelled fixture set and versioned with the
- * analyzer, which is why no defaults are exported here yet.
- */
-export interface SignificanceWeights {
-  readonly filesTouched: number;
-  readonly churn: number;
-  readonly isRelease: number;
-  readonly isRevertOrReland: number;
-  readonly touchesManifest: number;
-  readonly touchesPublicApi: number;
-  readonly firstTouchOfNewTopLevelDir: number;
-  readonly messageQuality: number;
-  readonly pathRarity: number;
-  readonly mergesLargeBranch: number;
-
-  readonly penaltyFormatOnly: number;
-  readonly penaltyGeneratedOnly: number;
-  readonly penaltyVendoredOnly: number;
-  readonly penaltyLockfileOnly: number;
-  readonly penaltyBulkMechanical: number;
-}
-
 export const significanceAnalyzer: Analyzer<void> = {
   id: ANALYZER_IDS.significance,
   version: 1,
   dependsOn: [],
   run: () => {
-    throw new NotImplementedError('significanceAnalyzer', 'M1');
+    /* The four M1 analyzers share one scan of `changes` against `commits`, so the work lives
+       in `runAnalysis` rather than four times over in four `run` methods. These entries keep
+       the `Analyzer` contract — an id, a version, and its dependencies — which is what drives
+       invalidation in Part 7 §7.2.3. */
+    throw new ExcavateError(
+      'INVALID_TARGET',
+      'the M1 analyzers run together via runAnalysis(); calling one alone would rescan the index',
+    );
   },
 };
 
@@ -99,7 +76,14 @@ export const ownershipAnalyzer: Analyzer<readonly Ownership[]> = {
   version: 1,
   dependsOn: [],
   run: () => {
-    throw new NotImplementedError('ownershipAnalyzer', 'M1');
+    /* The four M1 analyzers share one scan of `changes` against `commits`, so the work lives
+       in `runAnalysis` rather than four times over in four `run` methods. These entries keep
+       the `Analyzer` contract — an id, a version, and its dependencies — which is what drives
+       invalidation in Part 7 §7.2.3. */
+    throw new ExcavateError(
+      'INVALID_TARGET',
+      'the M1 analyzers run together via runAnalysis(); calling one alone would rescan the index',
+    );
   },
 };
 
@@ -133,13 +117,16 @@ export const hotspotAnalyzer: Analyzer<readonly Hotspot[]> = {
   version: 1,
   dependsOn: [ANALYZER_IDS.coupling],
   run: () => {
-    throw new NotImplementedError('hotspotAnalyzer', 'M1');
+    /* The four M1 analyzers share one scan of `changes` against `commits`, so the work lives
+       in `runAnalysis` rather than four times over in four `run` methods. These entries keep
+       the `Analyzer` contract — an id, a version, and its dependencies — which is what drives
+       invalidation in Part 7 §7.2.3. */
+    throw new ExcavateError(
+      'INVALID_TARGET',
+      'the M1 analyzers run together via runAnalysis(); calling one alone would rescan the index',
+    );
   },
 };
-
-export function complexityProxy(_source: string): number {
-  throw new NotImplementedError('complexityProxy', 'M1');
-}
 
 /* ── Reverts (Part 8 §8.5.3) ───────────────────────────────────────────────── */
 
@@ -185,6 +172,39 @@ export const eraAnalyzer: Analyzer<readonly Era[]> = {
     throw new NotImplementedError('eraAnalyzer', 'M5');
   },
 };
+
+/* ── The M1 implementations ────────────────────────────────────────────────── */
+
+export type { SignificanceWeights, SignificanceInput } from './significance.js';
+export {
+  DEFAULT_SIGNIFICANCE_WEIGHTS,
+  LARGE_BRANCH_COMMITS,
+  pathRarity,
+  significanceOf,
+  touchesPublicApi,
+} from './significance.js';
+
+export type { KnowledgeRow, OwnershipSummary } from './ownership.js';
+export {
+  decayedKnowledge,
+  dilutionFactor,
+  ISLAND_INACTIVE_DAYS,
+  isKnowledgeIsland,
+  summariseOwnership,
+} from './ownership.js';
+
+export type { HotspotFactors, HotspotInput } from './hotspots.js';
+export {
+  complexityProxy,
+  hotspotOf,
+  looksLikeFix,
+  normaliseLog,
+  RECENCY_HALF_LIFE_DAYS,
+  recencyWeight,
+} from './hotspots.js';
+
+export type { AnalysisRunDeps, AnalysisSummary } from './run.js';
+export { runAnalysis } from './run.js';
 
 /* ── Registry ──────────────────────────────────────────────────────────────── */
 

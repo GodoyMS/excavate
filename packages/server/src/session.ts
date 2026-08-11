@@ -33,6 +33,7 @@ import {
   isExcavateError,
   parseOid,
   repoId as brandRepoId,
+  fromDate,
   timestamp,
   toErrorPayload,
 } from '@wise-excavate/core';
@@ -41,6 +42,7 @@ import { CliGitBackend, DEFAULT_WALK_SPEC, discoverRepository } from '@wise-exca
 /* `META_KEYS` rather than the literal strings: the walk writes these rows and the daemon
    reads them, so a key spelled two ways in two packages is a bug neither the typechecker
    nor a unit test would catch — it would simply report `null` forever. */
+import { runAnalysis } from '@wise-excavate/analysis';
 import { META_KEYS, computeRepoId, createIndexPipeline } from '@wise-excavate/index';
 import type { Store } from '@wise-excavate/store';
 import { INDEX_FILE_NAME, openStore } from '@wise-excavate/store';
@@ -63,21 +65,15 @@ const SESSION_CONCURRENCY = 1;
 const NULL_OID: Oid = parseOid('0'.repeat(40));
 
 /**
- * The tiers `@wise-excavate/index` actually builds today.
+ * The tiers this release builds.
  *
- * **This constant is the difference between honest and silently wrong.**
- * `createIndexPipeline` reports progress but never says "this tier is finished", and at
- * M0 it implements `metadata` only: asked for `analysis` it yields one deferral record
- * and writes a `tier-failed` badge into the store's meta table (`ANALYSIS_SKIPPED`,
- * there). `excavate index` asks for both tiers, and `Store` exposes no meta read, so the
- * daemon cannot read that badge back. Announcing `index.tier_complete` for every
- * requested tier — which an earlier draft did — therefore told every client that the
- * analysis tier had been built, while `RepoSummary.partial` said `null`.
- *
- * Delete this the moment `@wise-excavate/index` reports tier completion itself or
- * `@wise-excavate/store` grows a meta read. Both are M1.
+ * Both, as of M1. At M0 this held `metadata` alone and existed to stop the daemon announcing
+ * `index.tier_complete` for a tier nothing had written — a partial index reported as whole,
+ * which is the failure Part 7 §7.7 forbids. That risk is gone now that `runAnalysis` exists,
+ * but the constant stays: it is what `unbuiltTiers` compares against, and the next tier to be
+ * specified before it is implemented (eras, at M5) will need exactly this guard again.
  */
-export const IMPLEMENTED_TIERS: readonly Tier[] = ['metadata'];
+export const IMPLEMENTED_TIERS: readonly Tier[] = ['metadata', 'analysis'];
 
 /** The requested tiers this release cannot build. */
 export function unbuiltTiers(requested: readonly Tier[]): readonly Tier[] {
@@ -208,7 +204,11 @@ export async function openSession(options: ServerOptions): Promise<RepoSession> 
         walkSpec: DEFAULT_WALK_SPEC,
       });
 
-      for await (const progress of pipeline.run({ tiers, signal })) {
+      /* The metadata tier *is* the walk. Analysis is a second pass over the rows it wrote,
+         driven from here rather than from inside the pipeline because `@wise-excavate/index`
+         may not depend on `@wise-excavate/analysis` — composition belongs to the composition
+         root, and that is this file (Part 14 §14.2). */
+      for await (const progress of pipeline.run({ tiers: ['metadata'], signal })) {
         bus.publish({
           type: 'index.progress',
           tier: progress.tier,
@@ -217,15 +217,39 @@ export async function openSession(options: ServerOptions): Promise<RepoSession> 
           ...(progress.note === null ? {} : { note: progress.note }),
         });
       }
+      bus.publish({ type: 'index.tier_complete', tier: 'metadata' });
 
-      /* Completion is claimed only for tiers that were built. See `IMPLEMENTED_TIERS`. */
+      if (tiers.includes('analysis')) {
+        state = 'analyzing';
+        bus.publish({
+          type: 'index.progress',
+          tier: 'analysis',
+          done: 0,
+          total: null,
+          note: 'scoring commits, ownership, and hotspots',
+        });
+        const summary = await runAnalysis({
+          store,
+          /* Read-time decay is measured from now. Passed in rather than read inside the
+             analyzer so a test can pin it, and so the *only* wall-clock read in the whole
+             indexing path is this one — which is what keeps the determinism test meaningful,
+             since nothing derived from it is stored. */
+          now: nowTimestamp(),
+          signal,
+          throughOid: headOid,
+        });
+        bus.publish({
+          type: 'index.progress',
+          tier: 'analysis',
+          done: summary.commitsScored,
+          total: summary.commitsScored,
+          note: `${summary.filesRanked} files ranked · ${summary.islands} knowledge ${summary.islands === 1 ? 'island' : 'islands'}`,
+        });
+        bus.publish({ type: 'index.tier_complete', tier: 'analysis' });
+      }
+
       for (const tier of tiers) attempted.add(tier);
       for (const tier of unbuiltTiers(tiers)) unbuilt.add(tier);
-      for (const tier of tiers) {
-        if (IMPLEMENTED_TIERS.includes(tier)) {
-          bus.publish({ type: 'index.tier_complete', tier });
-        }
-      }
       interrupted = null;
       state = 'ready';
       bus.publish({ type: 'job.done', job });
@@ -334,6 +358,17 @@ function metaTimestamp(store: Store, atKey: string, offsetKey: string): Timestam
   const offset = Number(store.meta.get(offsetKey));
   if (store.meta.get(atKey) === null || !Number.isSafeInteger(at)) return null;
   return timestamp(at, Number.isSafeInteger(offset) ? offset : 0);
+}
+
+/**
+ * The one wall-clock read in the indexing path.
+ *
+ * Knowledge decay is measured from "now" and nothing derived from it is stored, which is what
+ * keeps the determinism test honest: index the same history twice and every stored row matches,
+ * because this value only ever reaches a computation whose output is also recomputed.
+ */
+function nowTimestamp(): Timestamp {
+  return fromDate(new Date());
 }
 
 function interruptedAt(error: ExcavateError): string {

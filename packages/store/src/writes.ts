@@ -15,6 +15,7 @@
  */
 
 import type {
+  AnalyzerId,
   Change,
   Commit,
   FileEntity,
@@ -24,10 +25,12 @@ import type {
   Person,
   Ref,
   Tag,
+  CommitId,
 } from '@wise-excavate/core';
 import { NotImplementedError, pathId } from '@wise-excavate/core';
 import type BetterSqlite3 from 'better-sqlite3';
 
+import type { HotspotWrite, KnowledgeWrite, OwnershipWrite } from './analysis.js';
 import { bit, changeBind, commitBind, fileBind, personBind } from './codec.js';
 import type { Transaction } from './index.js';
 import { INDEX_STATE_KEY, REPO_ID_KEY, SCHEMA_VERSION_KEY } from './meta.js';
@@ -190,6 +193,32 @@ export function createTransactionApi(db: BetterSqlite3.Database): Transaction {
      VALUES (@id, @name, @targetId, @taggerId, @taggedAt, @taggedTz, @message)`,
   );
 
+  const deleteAllKnowledge = db.prepare('DELETE FROM knowledge');
+  const insertKnowledge = db.prepare(
+    `INSERT INTO knowledge (file_id, person_id, accumulated, last_at, last_offset, commits)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  );
+  const deleteAllOwnership = db.prepare('DELETE FROM ownership');
+  const insertOwnership = db.prepare(
+    `INSERT INTO ownership
+       (file_id, top_person, top_share, bus_factor, entropy, is_island, contributors)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  );
+  const deleteAllHotspots = db.prepare('DELETE FROM hotspots');
+  const insertHotspot = db.prepare(
+    `INSERT INTO hotspots
+       (file_id, score, churn, complexity, recency, fix_density, change_count, total_churn)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+  const updateSignificance = db.prepare(
+    'UPDATE commits SET significance = ? WHERE id = ?',
+  );
+  const upsertAnalyzerRun = db.prepare(
+    `INSERT INTO analyzer_runs (analyzer_id, version, through_oid) VALUES (?, ?, ?)
+     ON CONFLICT(analyzer_id) DO UPDATE SET version = excluded.version,
+                                            through_oid = excluded.through_oid`,
+  );
+
   const upsertMeta = db.prepare<[string, string]>(
     `INSERT INTO meta (key, value) VALUES (?, ?)
      ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
@@ -317,6 +346,73 @@ export function createTransactionApi(db: BetterSqlite3.Database): Transaction {
           message: tag.message,
         });
       }
+    },
+
+    /* ── Analysis rollups (schema v2) ─────────────────────────────────────── */
+
+    replaceKnowledge(rows: readonly KnowledgeWrite[]): void {
+      assertInTransaction('replaceKnowledge');
+      /* Replace rather than merge, and wholesale rather than per row. An analyzer owns its
+         entire output: a merge would leave rows for a (file, person) pair that the current
+         run no longer produces — a contributor whose knowledge has decayed to nothing, or a
+         file that a corrected rename resolution merged into another. Those stale rows would
+         inflate every bus factor they appear in, silently. */
+      deleteAllKnowledge.run();
+      for (const row of rows) {
+        insertKnowledge.run(
+          row.file,
+          row.person,
+          row.accumulated,
+          row.lastAt.epochSeconds,
+          row.lastAt.offsetMinutes,
+          row.commits,
+        );
+      }
+    },
+
+    replaceOwnership(rows: readonly OwnershipWrite[]): void {
+      assertInTransaction('replaceOwnership');
+      deleteAllOwnership.run();
+      for (const row of rows) {
+        insertOwnership.run(
+          row.file,
+          row.topPerson,
+          row.topShare,
+          row.busFactor,
+          row.entropy,
+          row.isIsland ? 1 : 0,
+          row.contributors,
+        );
+      }
+    },
+
+    replaceHotspots(rows: readonly HotspotWrite[]): void {
+      assertInTransaction('replaceHotspots');
+      deleteAllHotspots.run();
+      for (const row of rows) {
+        insertHotspot.run(
+          row.file,
+          row.score,
+          row.churn,
+          row.complexity,
+          row.recency,
+          row.fixDensity,
+          row.changeCount,
+          row.totalChurn,
+        );
+      }
+    },
+
+    setSignificance(
+      rows: readonly { readonly commit: CommitId; readonly score: number }[],
+    ): void {
+      assertInTransaction('setSignificance');
+      for (const row of rows) updateSignificance.run(row.score, row.commit);
+    },
+
+    recordAnalyzerRun(analyzer: AnalyzerId, version: number, throughOid: string): void {
+      assertInTransaction('recordAnalyzerRun');
+      upsertAnalyzerRun.run(analyzer, version, throughOid);
     },
 
     setIndexState(state: IndexState): void {

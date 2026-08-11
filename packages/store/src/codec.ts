@@ -73,6 +73,16 @@ const COMMIT_FLAG_ENTRIES = Object.entries(COMMIT_FLAG_BITS) as readonly [
 ][];
 const FILE_FLAG_ENTRIES = Object.entries(FILE_FLAG_BITS) as readonly [FileFlag, number][];
 
+/**
+ * Files that are in the index but must never appear in a *file* ranking.
+ *
+ * Derived from the bit table rather than written as a literal, because the alternative is a
+ * `flags & 3` in a SQL string that keeps compiling and silently stops matching the day someone
+ * reorders the flags — and the symptom would be a lockfile back at the top of the hotspot list,
+ * which is the exact thing Part 8 §8.5.3 warns about.
+ */
+export const NON_SOURCE_FILE_MASK = FILE_FLAG_BITS.generated | FILE_FLAG_BITS.vendored;
+
 export function encodeCommitFlags(flags: readonly CommitFlag[]): number {
   let mask = 0;
   for (const flag of flags) mask |= COMMIT_FLAG_BITS[flag];

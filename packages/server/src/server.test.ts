@@ -756,14 +756,17 @@ describe('createServer', () => {
 /* ── The session lifecycle (Part 7 §7.5) ───────────────────────────────────── */
 
 describe('tier honesty', () => {
-  it('names the tiers this release cannot build, so they are never announced complete', () => {
-    // `@wise-excavate/index` implements `metadata` only and defers `analysis` with a
-    // `tier-failed` badge, while `excavate index` asks for both. This is the constant that
-    // keeps the daemon from blessing the tier it did not build. When M1 implements the
-    // analysis tier, this test is the one that has to change.
-    expect(IMPLEMENTED_TIERS).toEqual(['metadata']);
-    expect(unbuiltTiers(TIERS)).toEqual(['analysis']);
+  it('no longer reports a tier gap, because both tiers are now built', () => {
+    /* This is the test its own M0 version said would have to change at M1, and it has.
+       `analysis` is built — by the composition root, over stored rows — so nothing is
+       unbuilt and no badge is warranted. The constant and the guard both stay: the next tier
+       specified ahead of its implementation (eras, at M5) needs exactly this mechanism, and
+       re-deriving it then is how a daemon ends up blessing a tier nobody wrote. */
+    expect(IMPLEMENTED_TIERS).toEqual(['metadata', 'analysis']);
+    expect(unbuiltTiers(TIERS)).toEqual([]);
     expect(unbuiltTiers(['metadata'])).toEqual([]);
+    // The guard still fires for a tier this release does not implement.
+    expect(unbuiltTiers(['metadata', 'eras' as never])).toEqual(['eras']);
   });
 
   it('turns a tier gap into the same badge the indexer records for it', () => {
@@ -816,7 +819,7 @@ describe('openSession, against a real repository', () => {
 
         // Completion is claimed for `metadata` and withheld from `analysis`, which the
         // pipeline deferred — the whole point of `IMPLEMENTED_TIERS`.
-        expect(completed).toEqual(['metadata']);
+        expect(completed).toEqual(['metadata', 'analysis']);
 
         const summary = session.summary();
         expect(summary.indexState).toBe('ready');
@@ -824,7 +827,9 @@ describe('openSession, against a real repository', () => {
         expect(summary.root).toBe(session.root);
         // Asked for a tier it cannot build, the session says so rather than reporting a
         // whole index.
-        expect(summary.partial).toEqual(tierGapBadge(['analysis']));
+        // No badge: both tiers were built. At M0 this asserted a `tier-failed` badge for
+        // `analysis`, which was the honest answer then and would be a lie now.
+        expect(summary.partial).toBeNull();
         commitCount = summary.commitCount;
 
         // A second call must not re-walk: `insertCommits` is a plain INSERT, so a second

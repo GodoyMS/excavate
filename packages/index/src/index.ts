@@ -185,22 +185,19 @@ export function createIndexPipeline(deps: IndexPipelineDeps): IndexPipeline {
 }
 
 /**
- * M0 implements the `metadata` tier and nothing else, so an `analysis` request is
- * reported rather than silently dropped — and the index is marked partial with the
- * tier named, which is the honest-degradation contract of Part 7 §7.7. `tier-failed`
- * is the closest of the three enumerated reasons; "not written yet" is a failure to
- * produce the tier from the caller's point of view.
+ * The pipeline builds the `metadata` tier only, and that is no longer a shortfall.
+ *
+ * At M0 an `analysis` request had to be reported as an unbuilt tier, because nothing built it.
+ * At M1 the analysis tier exists — it just is not *here*: it is a second pass over stored
+ * rows, driven by the composition root, because this package may not depend on
+ * `@wise-excavate/analysis`. So asking the pipeline for `analysis` is a caller mistake rather
+ * than a missing feature, and the deferral record below says so.
  */
 const ANALYSIS_DEFERRED: IndexProgress = {
   tier: 'analysis',
   done: 0,
   total: null,
-  note: 'the analysis tier is not implemented before M1',
-};
-
-const ANALYSIS_SKIPPED: PartialIndexBadge = {
-  reason: 'tier-failed',
-  skipped: 'analysis tier (significance, ownership, hotspots) — lands in M1',
+  note: 'the analysis tier is a second pass; ask the composition root, not the walk',
 };
 
 async function* runWalk(
@@ -547,7 +544,7 @@ async function* runWalk(
     );
   }
 
-  finalize('ready', analysisRequested ? ANALYSIS_SKIPPED : null, indexedTip);
+  finalize('ready', null, indexedTip);
   yield {
     tier: 'metadata',
     done: walked,
