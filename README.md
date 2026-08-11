@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/GodoyMS/excavate/actions/workflows/ci.yml/badge.svg)](https://github.com/GodoyMS/excavate/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![npm](https://img.shields.io/npm/v/@wise-excavate/git-fixtures?label=%40wise-excavate%2Fgit-fixtures)](https://www.npmjs.com/package/@wise-excavate/git-fixtures)
 
 > **Git tells you what changed. Excavate tells you why.**
 
@@ -9,6 +10,10 @@ Excavate turns any Git repository into a story you can read, a map you can explo
 a question you can ask — with receipts on every claim.
 
 > **Status: pre-alpha (M0 — foundations & walking skeleton).** Nothing is released yet.
+>
+> Published so far: **[`@wise-excavate/git-fixtures`](https://www.npmjs.com/package/@wise-excavate/git-fixtures)**
+> — the fixture DSL, useful on its own to anyone testing Git tooling (`npm i -D
+@wise-excavate/git-fixtures`). The product itself is not released.
 >
 > What works today: `excavate index` and `excavate open` on any repository, a real SQLite
 > index (schema v1), a localhost daemon with a token-authenticated API, a plain HTML commit

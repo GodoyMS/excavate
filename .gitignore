@@ -13,6 +13,9 @@ fixtures/generated/
 
 # env / secrets
 .env
+# A project-local .npmrc is the usual way an npm publish token leaks into a public
+# repository. Never tracked, whatever it contains.
+.npmrc
 .env.*
 !.env.example
 

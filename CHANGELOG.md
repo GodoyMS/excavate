@@ -13,11 +13,18 @@ file has exactly one section.
 
 ## Unreleased
 
-**M0 — Foundations & fixture DSL.** Code complete; not yet released. Nothing has been
-published to npm and no version has been tagged, and two Definition-of-Done items remain
-open: CI has never executed (there is no remote yet), and the reference corpora — `ripgrep`
-and `rust-analyzer` — have not been indexed, so the largest history the walk has faced is a
-100-commit fixture. The first release of the product is `excavate stats` at **M1 (v0.1)**.
+**M0 — Foundations & fixture DSL.** Complete, with one item outstanding: the write-up has
+not been posted.
+
+`@wise-excavate/git-fixtures@0.1.0` is published and tagged `v0.1.0-fixtures`. CI is green
+on Linux and macOS across Node 22 and 24. The walk has been verified against both reference
+corpora — `ripgrep` (2,255 commits) and `rust-analyzer` (12,832) — which is what caught the
+walk-order bug below. The product itself is unreleased; the first product release is
+`excavate stats` at **M1 (v0.1)**.
+
+The npm scope is `@wise-excavate` rather than `@excavate`, and the CLI will publish as
+`wise-excavate` rather than `excavate`, because both of those names are taken — see
+[ADR-0002](docs/adr/0002-npm-naming.md). The command remains `excavate`.
 
 M0 is foundations, so the entries below describe walls rather than a finished house.
 Every package's public interface exists, and the M0 thread through it —
