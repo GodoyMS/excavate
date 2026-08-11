@@ -12,11 +12,11 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/excavate-dev/excavate.git",
+    "url": "git+https://github.com/GodoyMS/excavate.git",
     "directory": "fixtures"
   },
   "bugs": {
-    "url": "https://github.com/excavate-dev/excavate/issues"
+    "url": "https://github.com/GodoyMS/excavate/issues"
   },
   "exports": {
     ".": {

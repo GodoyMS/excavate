@@ -3,19 +3,19 @@
 # bypasses templates entirely, which is how self-filed P2s from the Definition of Done
 # (ROADMAP §3, item 8) get logged.
 #
-# Both links hardcode the `excavate-dev/excavate` slug from the root package.json
+# Both links use the `GodoyMS/excavate` slug, verified against the real remote
 # `repository.url`. There is no git remote yet, so if the real slug differs these 404
 # and need a one-line fix. The second also depends on README keeping its `## Non-goals`
 # heading.
 blank_issues_enabled: false
 contact_links:
   - name: Roadmap and scope
-    url: https://github.com/excavate-dev/excavate/blob/main/docs/spec/ROADMAP.md
+    url: https://github.com/GodoyMS/excavate/blob/main/docs/spec/ROADMAP.md
     about: >-
       What ships when. Most "will you support X" questions are answered by a milestone
       here, or by the cut list in LEAN-V1 §3.
   - name: Non-goals
-    url: https://github.com/excavate-dev/excavate/blob/main/README.md#non-goals
+    url: https://github.com/GodoyMS/excavate/blob/main/README.md#non-goals
     about: >-
       Some things are permanently out of scope — notably anything resembling developer
       productivity or performance measurement, which is a hard ethical line.

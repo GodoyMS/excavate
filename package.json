@@ -7,7 +7,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/excavate-dev/excavate.git"
+    "url": "git+https://github.com/GodoyMS/excavate.git"
   },
   "packageManager": "pnpm@10.26.0",
   "engines": {
