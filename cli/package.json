@@ -5,7 +5,7 @@
   "description": "Git history archaeology in your terminal. Hotspots, knowledge islands, and why a line exists.",
   "license": "Apache-2.0",
   "bin": {
-    "excavate": "./dist/bin.js"
+    "excavate": "dist/bin.js"
   },
   "exports": {
     ".": {
