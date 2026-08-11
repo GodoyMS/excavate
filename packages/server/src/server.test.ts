@@ -197,6 +197,17 @@ function fakeStore(rows: readonly Commit[]): StoreDouble {
     // No route reads meta; the session does, and `session.test.ts` covers it against a
     // real store. An empty double here keeps that boundary visible.
     meta: { get: () => null, indexState: () => null },
+    /* No HTTP route reads the analysis scan — it is an indexing-time concern — so the double
+       refuses rather than returning empty results. An empty answer here would let a route
+       start depending on it and look correct while reporting nothing. */
+    analysis: {
+      commits: unsupported,
+      changes: unsupported,
+      paths: unsupported,
+      releaseCommits: unsupported,
+      nonSourceFiles: unsupported,
+      lastRun: unsupported,
+    },
     bundles: { get: () => null, put: () => undefined },
   };
 
