@@ -10,7 +10,16 @@ import type { Identity, LineRange, Oid, RefKind, Timestamp } from '@wise-excavat
 import { ExcavateError, NotImplementedError, isOid, parseOid } from '@wise-excavate/core';
 
 import type { GitCommand } from './exec.js';
-import { DEFAULT_GIT_BINARY, runGit, spawnGit, stderrOf } from './exec.js';
+import {
+  DEFAULT_GIT_BINARY,
+  exitCodeOfGit,
+  runGit,
+  spawnGit,
+  stderrOf,
+  tryRunGit,
+} from './exec.js';
+import type { Mailmap } from './mailmap.js';
+import { parseMailmap } from './mailmap.js';
 import type { RawChange, RawCommit, WalkSpec } from './walk.js';
 import { parseLogStream, walkArgs } from './walk.js';
 
@@ -92,6 +101,22 @@ export interface GitBackend {
   ): Promise<readonly BlameHunk[]>;
   readBlob(oid: Oid): Promise<Uint8Array>;
   treeAt(commit: Oid): Promise<readonly TreeEntry[]>;
+  /**
+   * The repository's `.mailmap`, or `null` when it has none.
+   *
+   * On the backend rather than in the indexer because reading a tracked file is repository
+   * I/O, and boundary rule B1 says only this package does that. Read from HEAD rather than
+   * the working tree so the answer does not depend on whether someone has uncommitted edits.
+   */
+  readMailmap(): Promise<Mailmap | null>;
+  /**
+   * Whether `ancestor` is reachable from `descendant`.
+   *
+   * This is what separates a fast-forward from a rewrite on the incremental path, and it has
+   * to tolerate `ancestor` no longer existing at all — the usual outcome of an amend or a
+   * force-push — by answering `false` rather than throwing.
+   */
+  isAncestor(ancestor: Oid, descendant: Oid): Promise<boolean>;
   capabilities(): Promise<BackendCapabilities>;
 }
 
@@ -269,6 +294,26 @@ export class CliGitBackend implements GitBackend {
       entries.push(parseTreeRecord(record));
     }
     return entries;
+  }
+
+  async readMailmap(): Promise<Mailmap | null> {
+    /* `HEAD:.mailmap` rather than the file on disk: the mailmap is part of the history's
+       own declaration of identity, and reading an uncommitted edit would make two people
+       indexing the same commit get different ownership. A repository with no mailmap — the
+       common case — exits non-zero, which is not an error here. */
+    const result = await tryRunGit(this.command(['show', 'HEAD:.mailmap']));
+    return result === null ? null : parseMailmap(result);
+  }
+
+  async isAncestor(ancestor: Oid, descendant: Oid): Promise<boolean> {
+    /* `merge-base --is-ancestor` communicates through the exit code: 0 yes, 1 no, and
+       128 when an object is missing. All three are expected, so this cannot use the
+       throwing runner — a missing ancestor is the *answer* on a rewritten history, not a
+       failure to compute one. */
+    const outcome = await exitCodeOfGit(
+      this.command(['merge-base', '--is-ancestor', ancestor, descendant]),
+    );
+    return outcome === 0;
   }
 
   async capabilities(): Promise<BackendCapabilities> {

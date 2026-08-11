@@ -34,7 +34,7 @@ import {
   pathId,
   timestamp,
 } from '@wise-excavate/core';
-import type { GitBackend, RawChange, RawCommit } from '@wise-excavate/git';
+import type { GitBackend, Mailmap, RawChange, RawCommit } from '@wise-excavate/git';
 import { DEFAULT_WALK_SPEC } from '@wise-excavate/git';
 import type { Store, Transaction } from '@wise-excavate/store';
 import { describe, expect, it } from 'vitest';
@@ -44,13 +44,9 @@ import {
   computeRepoId,
   createIdentityResolver,
   createIndexPipeline,
-  createNoiseClassifier,
   createRenameResolver,
   DELETE_ADD_RENAME_SIMILARITY,
-  detectUpdateKind,
-  isBotIdentity,
   META_KEYS,
-  normalizeEmail,
 } from './index.js';
 
 /* ── Fakes ─────────────────────────────────────────────────────────────────── */
@@ -132,6 +128,7 @@ function rawCommit(n: number, overrides: CommitOverrides = {}): RawCommit {
 function fakeBackend(
   commits: readonly RawCommit[],
   onEmit?: (index: number) => void,
+  options: { readonly mailmap?: Mailmap | null } = {},
 ): { readonly backend: GitBackend; readonly emitted: Oid[] } {
   const emitted: Oid[] = [];
   const backend = {
@@ -142,6 +139,17 @@ function fakeBackend(
         yield commit;
       }
     },
+    /* The walk reads HEAD before starting, to record `indexed_tip` for the incremental
+       path. The last *emitted* commit will not do: under `--all` that is whichever ref tip
+       sorts last topologically, so a tip taken from the stream would make every second
+       open look like a history rewrite. */
+    refs: () =>
+      Promise.resolve(
+        commits.length === 0
+          ? []
+          : [{ name: 'HEAD', kind: 'head', target: commits.at(-1)!.oid, isHead: true }],
+      ),
+    readMailmap: () => Promise.resolve(options.mailmap ?? null),
   } as unknown as GitBackend;
   return { backend, emitted };
 }
@@ -569,11 +577,15 @@ describe('write ordering', () => {
   });
 
   it('upserts only the people and files a batch touched, not the whole table again', async () => {
-    // Two authors alternating and one file per commit: the second batch must not
-    // rewrite the first batch's rows, or the walk becomes quadratic in table size.
+    // Distinct names as well as distinct addresses: sharing a name at one domain is what
+    // step 4 of the identity ladder merges on, and it would collapse these two into one.
     const { log } = await index(
       [1, 2, 3, 4].map((n) =>
-        rawCommit(n, { email: `dev${n % 2}@example.com`, changes: [add(`src/${n}.ts`)] }),
+        rawCommit(n, {
+          name: n % 2 === 0 ? 'Dev Zero' : 'Dev One',
+          email: `dev${n % 2}@example.com`,
+          changes: [add(`src/${n}.ts`)],
+        }),
       ),
       { batchRows: 2 },
     );
@@ -596,9 +608,12 @@ describe('write ordering', () => {
     expect(log.files.size).toBe(4);
   });
 
-  it('records a rename against both files in the batch that renamed them', async () => {
-    // The vacated path's row changes too — it learns that it died — and a dirty-set
-    // optimisation that forgets the second row loses that write silently.
+  it('re-emits the renamed file so its second alias reaches the store', async () => {
+    /* One row, not two — a rename extends a single file's alias chain. The row must still
+       be re-emitted in the batch that renamed it, because `upsertFiles` rewrites aliases
+       wholesale: a dirty-set that forgot it would leave the store holding a one-alias view
+       of a two-alias file, with the older path unreachable. That is the M0 defect wearing a
+       different hat. */
     const { log } = await index(
       [
         rawCommit(1, { changes: [add('src/old.ts')] }),
@@ -607,19 +622,24 @@ describe('write ordering', () => {
       { batchRows: 2 },
     );
 
-    expect(callsMatching(log, 'upsertFiles')).toEqual(['upsertFiles:1', 'upsertFiles:2']);
-    expect(filesOf(log)[0]?.died).toBe(2);
+    expect(callsMatching(log, 'upsertFiles')).toEqual(['upsertFiles:1', 'upsertFiles:1']);
+    const file = filesOf(log)[0];
+    expect(file?.died).toBeNull();
+    expect(file?.aliases).toHaveLength(2);
   });
 });
 
-/* ── The M0 shortcuts, pinned so their replacement is a visible change ─────── */
+/* ── Identity and file identity, as of M1 ──────────────────────────────────── */
 
-describe('M0 identity resolution', () => {
-  it('collapses two commits from one email into one person and keeps two emails apart', async () => {
+describe('identity resolution', () => {
+  it('collapses two commits from one email into one person and keeps two people apart', async () => {
     const { log } = await index([
       rawCommit(1, { email: 'ada@example.com' }),
       rawCommit(2, { email: 'ADA@example.com', name: 'A. Lovelace' }),
-      rawCommit(3, { email: 'grace@example.com' }),
+      // A distinct *name* as well as a distinct address. Given the same name this would
+      // merge by step 4 — same normalised name, same email domain — and correctly so: one
+      // human at one organisation with two mailboxes is exactly what step 4 is for.
+      rawCommit(3, { email: 'grace@example.com', name: 'Grace Hopper' }),
     ]);
 
     expect(peopleOf(log)).toHaveLength(2);
@@ -637,17 +657,40 @@ describe('M0 identity resolution', () => {
     const { log } = await index([
       {
         ...authored,
-        committer: { name: 'Rebase Bot', email: 'bot@example.com' },
+        committer: { name: 'Rebase Person', email: 'rebaser@example.org' },
       },
     ]);
 
     expect(peopleOf(log).map((person) => person.commitCount)).toEqual([1, 0]);
-    // No bot detection exists yet, which is exactly why M0 ships no contributor list.
+    /* Neither is flagged, and that is the assertion: bot detection matches *conventions*
+       (`[bot]` suffixes, the known dependency bots, CI service accounts) rather than the
+       substring "bot" in a display name. Flagging a human called Robotham, or anyone whose
+       address happens to contain those letters, would quietly remove them from ownership —
+       a false positive here is worse than a false negative, because a missing bot is
+       visible in the cast of characters while a misfiled human is not. */
     expect(peopleOf(log).map((person) => person.isBot)).toEqual([false, false]);
+  });
+
+  it('flags a bot by convention, keeping it out of ownership but not out of provenance', async () => {
+    const { log } = await index([
+      rawCommit(1, { email: 'ada@example.com' }),
+      rawCommit(2, {
+        name: 'dependabot[bot]',
+        email: '49699333+dependabot[bot]@users.noreply.github.com',
+      }),
+      rawCommit(3, { name: 'github-actions[bot]', email: 'actions@github.com' }),
+    ]);
+
+    const bots = peopleOf(log).filter((person) => person.isBot);
+    expect(bots).toHaveLength(2);
+    // Still stored, still authoring commits: the flag excludes them from analysis, it does
+    // not erase the fact that they changed the repository.
+    expect(bots.every((bot) => bot.commitCount === 1)).toBe(true);
+    expect(log.commits).toHaveLength(3);
   });
 });
 
-describe('M0 file identity', () => {
+describe('file identity', () => {
   it('resolves one path touched by many commits to a single file', async () => {
     const { log } = await index([
       rawCommit(1, { changes: [add('src/a.ts')] }),
@@ -662,20 +705,29 @@ describe('M0 file identity', () => {
     expect(filesOf(log)[0]?.aliases).toHaveLength(1);
   });
 
-  it('splits a renamed file into two unrelated ones — the known defect M1 removes', async () => {
+  it('keeps a renamed file as one file, with an alias for every path it has lived at', async () => {
+    /* The M0 behaviour this replaces produced *two* unrelated files, which silently deleted
+       the older half of the file's history from churn, from ownership, and from the
+       knowledge model — while the report still read as authoritative. This is the single
+       most important assertion in the package. */
     const { log } = await index([
       rawCommit(1, { changes: [add('src/old.ts')] }),
       rawCommit(2, { changes: [renamed('src/old.ts', 'src/new.ts')] }),
       rawCommit(3, { changes: [edit('src/new.ts')] }),
     ]);
 
-    // Two files where there is one. The rename event itself survives on the change
-    // row, which is what makes M1's resolver able to stitch them together.
-    expect(filesOf(log)).toHaveLength(2);
-    expect(filesOf(log)[0]?.died).toBe(2);
-    expect(filesOf(log)[0]?.currentPath).toBeNull();
-    expect(filesOf(log)[1]?.born).toBe(2);
-    expect(filesOf(log)[1]?.currentPath).not.toBeNull();
+    expect(filesOf(log)).toHaveLength(1);
+    const file = filesOf(log)[0];
+    expect(file?.born).toBe(1);
+    expect(file?.died).toBeNull();
+    expect(file?.aliases).toHaveLength(2);
+    // Invariant 2 of Part 8 §8.8: the segments abut and never overlap.
+    expect(file?.aliases[0]?.from).toBe(1);
+    expect(file?.aliases[0]?.to).toBe(2);
+    expect(file?.aliases[1]?.from).toBe(2);
+    expect(file?.aliases[1]?.to).toBeNull();
+    // And every change across the rename points at that one file, which is the point.
+    expect(new Set(log.changes.map((change) => change.file))).toEqual(new Set([1]));
 
     const rename = log.changes.find((change) => change.kind === 'rename');
     expect(rename?.similarity).toBe(100);
@@ -948,6 +1000,8 @@ describe('walk failure', () => {
         yield rawCommit(1);
         throw boom;
       },
+      refs: () => Promise.resolve([]),
+      readMailmap: () => Promise.resolve(null),
     } as unknown as GitBackend;
 
     const pipeline = createIndexPipeline({
@@ -1045,16 +1099,10 @@ describe('the M0.1 surface', () => {
     expect(DELETE_ADD_RENAME_SIMILARITY).toBeGreaterThan(50);
   });
 
-  it('defers the trust-foundation work to M1, where it gets three full weeks', () => {
-    const { store } = fakeStore();
-    const { backend } = fakeBackend([]);
-
-    expect(() => createRenameResolver()).toThrow(NotImplementedError);
-    expect(() => createRenameResolver()).toThrow(/M1/);
-    expect(() => createIdentityResolver(null)).toThrow(/M1/);
-    expect(() => createNoiseClassifier()).toThrow(/M1/);
-    expect(() => normalizeEmail('ada+tag@example.com')).toThrow(/M1/);
-    expect(() => isBotIdentity({ name: 'bot', email: 'bot@example.com' })).toThrow(/M1/);
-    expect(() => detectUpdateKind(backend, store)).toThrow(/M1/);
+  it('has replaced the two fakes it deferred, and deleted the file holding them', () => {
+    /* Inverted at M1, deliberately: this test existed to make the replacement a visible
+       change rather than a silent one. `m0-resolvers.ts` is gone. */
+    expect(createRenameResolver()).toBeTypeOf('object');
+    expect(createIdentityResolver(null)).toBeTypeOf('object');
   });
 });

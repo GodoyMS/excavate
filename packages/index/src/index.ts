@@ -32,16 +32,11 @@ import type {
   Commit,
   CommitFlag,
   CommitId,
-  FileEntity,
   FileFlag,
-  FileId,
-  Identity,
   IndexState,
   Oid,
   PartialIndexBadge,
   PathId,
-  Person,
-  PersonId,
   Tier,
   Timestamp,
 } from '@wise-excavate/core';
@@ -49,7 +44,7 @@ import {
   commitId,
   compareTimestamps,
   ExcavateError,
-  NotImplementedError,
+  parseOid,
 } from '@wise-excavate/core';
 import type {
   GitBackend,
@@ -61,13 +56,10 @@ import type {
 import type { Store, Transaction } from '@wise-excavate/store';
 import { WRITE_BATCH_ROWS } from '@wise-excavate/store';
 
-import {
-  createM0FileTable,
-  createM0PeopleTable,
-  m0CommitFlags,
-  M0_SIGNIFICANCE,
-  splitCommitMessage,
-} from './m0-resolvers.js';
+import { createIdentityResolver } from './identity.js';
+import { splitCommitMessage } from './message.js';
+import { classifyCommit, classifyPath } from './noise.js';
+import { createRenameResolver } from './renames.js';
 
 /* ── The walk ──────────────────────────────────────────────────────────────── */
 
@@ -168,6 +160,15 @@ export const META_KEYS = {
    */
   partialReason: 'partial_reason',
   partialSkipped: 'partial_skipped',
+  /**
+   * The commit the index was built up to, so the next open can tell a fast-forward from a
+   * rewrite (`detectUpdateKind`).
+   *
+   * This is HEAD's oid at walk time, not the last commit the walk emitted — under `--all`
+   * the last emitted commit is whichever ref tip sorts last topologically, which is usually
+   * not HEAD. Storing that instead would make every second open look like a rewrite.
+   */
+  indexedTip: 'indexed_tip',
 } as const;
 
 export function createIndexPipeline(deps: IndexPipelineDeps): IndexPipeline {
@@ -217,8 +218,11 @@ async function* runWalk(
   }
 
   const { store, sinks } = deps;
-  const people = createM0PeopleTable();
-  const files = createM0FileTable();
+  /* The real resolvers, as of M1. `m0-resolvers.ts` is deleted: identity is the five-step
+     ladder of Part 8 §8.3.1 including `.mailmap` and bot detection, and file identity is
+     the alias-chain model of §8.3.2 including resurrection. */
+  const people = createIdentityResolver(await readMailmap(deps.backend));
+  const files = createRenameResolver();
 
   /** Interned once per distinct path and cached for the life of the walk. */
   const pathIds = new Map<string, PathId>();
@@ -233,6 +237,11 @@ async function* runWalk(
    */
   const commitIds = new Map<Oid, CommitId>();
   const pending: { readonly raw: RawCommit; readonly id: CommitId }[] = [];
+
+  /* HEAD, read once before the walk. `detectUpdateKind` compares against it on the next
+     open, and it must be HEAD rather than the last-emitted commit — see META_KEYS.indexedTip.
+     An unborn HEAD is not an error: an empty repository walks as empty. */
+  const indexedTip = await headOrNull(deps.backend);
 
   let walked = 0;
   let bufferedRows = 0;
@@ -291,7 +300,7 @@ async function* runWalk(
     const changes: Change[] = [];
 
     for (const { raw, id } of pending) {
-      const { subject, body } = splitCommitMessage(raw.message);
+      const parsed = splitCommitMessage(raw.message);
       const parents: CommitId[] = [];
       for (const parent of raw.parents) {
         const parentId = commitIds.get(parent);
@@ -311,10 +320,9 @@ async function* runWalk(
         committer: people.resolve(raw.committer, raw.committedAt, 'committer'),
         authoredAt: raw.authoredAt,
         committedAt: raw.committedAt,
-        subject,
-        body,
-        // Empty until the trailer parser lands; see `splitCommitMessage`.
-        trailers: [],
+        subject: parsed.subject,
+        body: parsed.body,
+        trailers: parsed.trailers,
         // **Not a commit-graph generation number.** It is the 1-based walk ordinal,
         // which is *a* valid topological order — parents sort before children, so
         // `isAncestor` cannot produce a false positive along the walked spine.
@@ -330,13 +338,19 @@ async function* runWalk(
         // renumbers if the walk order changes and says nothing about branches the
         // projection skipped. Anything beyond "parent < child" must not rely on it.
         generation: id,
-        flags: m0CommitFlags(raw),
-        significance: M0_SIGNIFICANCE,
+        flags: classifyCommit(raw, raw.parents.length > 1).flags,
+        /* Left at zero by the walk on purpose. Significance needs corpus-wide facts —
+           path rarity is an inverse document frequency over every touched path, and
+           message quality depends on which subjects repeat across the whole repository —
+           so it cannot be computed one commit at a time. `significanceAnalyzer` fills this
+           in during the analysis tier, over stored rows. */
+        significance: 0,
       });
 
+      const affected = files.advance(raw, id, classifyPath);
       for (const change of raw.changes) {
-        const file = files.observe(change, id);
-        if (file === null) continue;
+        const file = affected.get(change);
+        if (file === undefined) continue;
         changes.push({
           commit: id,
           file,
@@ -369,7 +383,7 @@ async function* runWalk(
     const touchedPeople = people.drain();
     if (touchedPeople.length > 0) tx.upsertPeople(touchedPeople);
     if (commits.length > 0) tx.insertCommits(commits);
-    const touchedFiles = files.drain((path) => pathIdOf(tx, path));
+    const touchedFiles = files.drain((path: string) => pathIdOf(tx, path));
     if (touchedFiles.length > 0) tx.upsertFiles(touchedFiles);
     if (changes.length > 0) tx.insertChanges(changes);
 
@@ -395,12 +409,24 @@ async function* runWalk(
    * (all of which `writeBufferedRows` drains), every sink's flush, and the state row —
    * together, so that the state row is never durable ahead of the rows it describes.
    */
-  const finalize = (state: IndexState, partial: PartialIndexBadge | null): void => {
+  const finalize = (
+    state: IndexState,
+    partial: PartialIndexBadge | null,
+    indexedTip: Oid | null,
+  ): void => {
     write((tx) => {
       writeBufferedRows(tx);
       for (const sink of sinks) sink.finish(tx);
 
       tx.setMeta(META_KEYS.projection, deps.walkSpec.projection);
+      /* Written only for a walk that ran to completion. A cancelled or failed walk must not
+         claim a tip: the next open would read it, conclude "fast-forward", and append to an
+         index that is missing the middle of its own history. Empty means "walk everything",
+         which is the only safe default. */
+      tx.setMeta(
+        META_KEYS.indexedTip,
+        state === 'ready' && indexedTip !== null ? indexedTip : '',
+      );
       if (earliest !== null) {
         tx.setMeta(META_KEYS.firstCommitAt, String(earliest.epochSeconds));
         tx.setMeta(META_KEYS.firstCommitOffset, String(earliest.offsetMinutes));
@@ -471,10 +497,14 @@ async function* runWalk(
     // explains the state, and the index state simply stays at `walking`, which is the
     // truthful description of a walk that died mid-flight.
     try {
-      finalize('failed', {
-        reason: 'tier-failed',
-        skipped: `history after ${walked} commits — the walk failed`,
-      });
+      finalize(
+        'failed',
+        {
+          reason: 'tier-failed',
+          skipped: `history after ${walked} ${walked === 1 ? 'commit' : 'commits'} — the walk failed`,
+        },
+        null,
+      );
     } catch {
       /* The store is unusable. The rethrown cause below says why. */
     }
@@ -485,10 +515,14 @@ async function* runWalk(
     // The rows are committed first, and `stale` rather than `failed`: a user
     // cancelling is not a failure, and `stale` is the state whose outgoing edge is
     // "walk the difference". So the partial index survives and is usable.
-    finalize('stale', {
-      reason: 'interrupted',
-      skipped: `history after ${walked} ${walked === 1 ? 'commit' : 'commits'}`,
-    });
+    finalize(
+      'stale',
+      {
+        reason: 'interrupted',
+        skipped: `history after ${walked} ${walked === 1 ? 'commit' : 'commits'}`,
+      },
+      null,
+    );
     yield {
       tier: 'metadata',
       done: walked,
@@ -513,7 +547,7 @@ async function* runWalk(
     );
   }
 
-  finalize('ready', analysisRequested ? ANALYSIS_SKIPPED : null);
+  finalize('ready', analysisRequested ? ANALYSIS_SKIPPED : null, indexedTip);
   yield {
     tier: 'metadata',
     done: walked,
@@ -524,96 +558,88 @@ async function* runWalk(
   if (analysisRequested) yield ANALYSIS_DEFERRED;
 }
 
-/* ── Identity merging (Part 8 §8.3.1) ──────────────────────────────────────── */
+/* ── Identity merging and rename resolution ────────────────────────────────── */
 
 /**
- * Resolution order, earlier wins. Each merge records its source so the UI can
- * explain it and the user can override — a heuristic merge shown as fact is how an
- * ownership model loses trust.
+ * The two hard problems, implemented in their own modules and re-exported here so this file
+ * stays the package's contract.
  *
- * Never merged: identical names with unrelated emails and *overlapping* activity
- * windows. That is two people named Chen.
+ * `m0-resolvers.ts` is **deleted** as of M1. It held a one-person-per-email identity table
+ * and a one-file-per-path table, both deliberately fake and loudly labelled, because a
+ * half-real version of either is worse than an obvious placeholder: the failures are silent
+ * and the report stays plausible. What replaces them:
+ *
+ * - `./identity.ts` — the five-step ladder of Part 8 §8.3.1, `.mailmap` first and
+ *   authoritative, with bot detection and a recorded `mergeSource` on every person so a
+ *   user can audit why two identities became one.
+ * - `./renames.ts` — the alias-chain model of §8.3.2, including resurrection, upholding the
+ *   three invariants of §8.8 that every downstream query assumes.
  */
-export interface IdentityResolver {
-  resolve(identity: Identity, seenAt: Timestamp): PersonId;
-  /**
-   * The merged people, available once the walk completes.
-   *
-   * **M1 must add an incremental drain beside this, and the reason is not
-   * performance.** `commits.author_id REFERENCES people(id)` is an immediate
-   * constraint and `openStore` only disables foreign keys under `bulkLoad`, which the
-   * daemon does not use — so a person row has to be written in the same transaction as
-   * the first commit that references them, and a table available only "once the walk
-   * completes" cannot supply it. That is why `M0PeopleTable` exposes `drain()`; the
-   * shape it landed on is the one this interface needs. It is also what makes an
-   * identity *merge* mid-walk a write rather than a rewrite, which the store's
-   * `person_identities` upsert is already built for.
-   */
-  finish(): readonly Person[];
-}
+export type { IdentityResolver } from './identity.js';
+export {
+  createIdentityResolver,
+  emailDomain,
+  HEURISTIC_NAME_SIMILARITY,
+  isBotIdentity,
+  jaroWinkler,
+  normalizeEmail,
+  normalizeName,
+} from './identity.js';
 
-export function createIdentityResolver(_mailmap: Mailmap | null): IdentityResolver {
-  throw new NotImplementedError('createIdentityResolver', 'M1');
-}
+export type { PathClassifier, RenameResolver } from './renames.js';
+export { createRenameResolver, languageOf } from './renames.js';
 
-/** Strip `+tag`, unify Gmail dots, map `NNNN+user@users.noreply.github.com` → `user@…`. */
-export function normalizeEmail(_email: string): string {
-  throw new NotImplementedError('normalizeEmail', 'M1');
-}
+export type { ParsedMessage } from './message.js';
+export { coAuthors, messageQuality, splitCommitMessage } from './message.js';
 
-/** Bots are flagged, excluded from ownership, and retained for provenance. */
-export function isBotIdentity(_identity: Identity): boolean {
-  throw new NotImplementedError('isBotIdentity', 'M1');
-}
-
-/* ── Rename resolution (Part 8 §8.3.2) ─────────────────────────────────────── */
+export {
+  BULK_FILE_THRESHOLD,
+  classifyCommit,
+  classifyPath,
+  CODEMOD_UNIFORMITY,
+  firstLine,
+  isBinaryPath,
+  isGenerated,
+  isLockfile,
+  isManifest,
+  isTestPath,
+  isVendored,
+} from './noise.js';
 
 /**
- * Maintains the `path → FileId` frontier as the walk advances.
+ * Read `.mailmap` from the working tree, if there is one.
  *
- * M1 handles explicit renames and resurrection; the delete+add similarity heuristic
- * and merge reconciliation land in M2 (ROADMAP M1 deliverable 3).
- *
- * The invariants this must uphold are property-tested (Part 8 §8.8): aliases of a
- * `FileId` never overlap in commit-time, and every `(commit, path)` resolves to
- * exactly one `FileId`.
+ * Absence is the common case and is not an error — most repositories have no mailmap, and
+ * the resolver simply starts at step 2 of the ladder. A mailmap that exists but cannot be
+ * read *is* worth surfacing, since silently ignoring the repository's own declaration of
+ * identity would make ownership wrong in exactly the way the file exists to prevent.
  */
-export interface RenameResolver {
-  /** Advance the frontier across one commit's changes. */
-  advance(commit: RawCommit, commitId: CommitId): void;
-  /** The file currently living at `path`, or `null` if none does. */
-  resolve(path: string): FileId | null;
-  /**
-   * Same caveat as `IdentityResolver.finish`, and sharper here: `changes.file_id
-   * REFERENCES files(id)` and `files.born_commit REFERENCES commits(id)` are both
-   * immediate, so a batch's file rows must be written after its commits and before its
-   * changes. A resolver that only materialises at the end cannot be flushed
-   * incrementally at all. See `M0FileTable.drain`, and note that a rename dirties two
-   * rows, not one.
-   */
-  finish(): readonly FileEntity[];
+export async function readMailmap(backend: GitBackend): Promise<Mailmap | null> {
+  return backend.readMailmap();
 }
 
-export function createRenameResolver(): RenameResolver {
-  throw new NotImplementedError('createRenameResolver', 'M1');
+/** HEAD, or `null` for a repository with no commits yet. */
+async function headOrNull(backend: GitBackend): Promise<Oid | null> {
+  const refs = await backend.refs();
+  return refs.find((ref) => ref.name === 'HEAD')?.target ?? null;
 }
 
-/** Similarity at or above this counts a delete+add pair as a rename (Part 8 §8.3.2 step 3). */
+/** Similarity at or above this counts a delete+add pair as a rename (Part 8 §8.3.2 step 3, M2). */
 export const DELETE_ADD_RENAME_SIMILARITY = 90;
 
 /* ── Noise classification ──────────────────────────────────────────────────── */
 
 /**
- * Produces the penalty flags that keep the Prettier migration and the lockfile
- * refresh out of "the most significant commits in this repo".
+ * The classifier as an object, for a caller that wants to inject one.
+ *
+ * The implementations are the two pure functions re-exported above. There is no factory
+ * because there is no state: classification is a function of a path or a commit and nothing
+ * else, which is what makes it trivially testable and what makes the anti-embarrassment
+ * test (no noise commit in the top 50 by significance) meaningful on any repository.
  */
 export interface NoiseClassifier {
-  classifyCommit(commit: RawCommit): readonly CommitFlag[];
+  classifyCommit(commit: RawCommit, isMerge: boolean): readonly CommitFlag[];
   classifyPath(path: string): readonly FileFlag[];
-}
-
-export function createNoiseClassifier(): NoiseClassifier {
-  throw new NotImplementedError('createNoiseClassifier', 'M1');
 }
 
 /* ── Incremental update ────────────────────────────────────────────────────── */
@@ -624,11 +650,40 @@ export function createNoiseClassifier(): NoiseClassifier {
  */
 export type UpdateKind = 'up-to-date' | 'fast-forward' | 'history-rewritten';
 
-export function detectUpdateKind(
-  _backend: GitBackend,
-  _store: Store,
+export async function detectUpdateKind(
+  backend: GitBackend,
+  store: Store,
 ): Promise<UpdateKind> {
-  throw new NotImplementedError('detectUpdateKind', 'M1');
+  const storedTip = store.meta.get(META_KEYS.indexedTip);
+  if (storedTip === null || storedTip === '') {
+    // Never indexed, or indexed by a build predating the marker. Either way the only safe
+    // reading is "walk everything": claiming a fast-forward would skip history that was
+    // never stored, and the result would be a silently short index.
+    return 'history-rewritten';
+  }
+
+  const refs = await backend.refs();
+  const currentTip = refs.find((ref) => ref.name === 'HEAD')?.target ?? null;
+  if (currentTip === null) {
+    // A repository whose HEAD is unborn has nothing to add. Reporting `up-to-date` would be
+    // wrong if the stored index has commits (the history was deleted), so this is a rebuild.
+    return 'history-rewritten';
+  }
+  if (currentTip === storedTip) return 'up-to-date';
+
+  /* The distinction that matters: is the stored tip still an ancestor of the new one?
+   *
+   * If it is, every commit we indexed is still in the history and the new ones append to
+   * it — a fast-forward, and the walk can be limited to `stored..HEAD`. If it is not, the
+   * history was rewritten (rebase, amend, force-push, or a squash), and rows already stored
+   * describe commits that no longer exist. LEAN-V1 §3.1 cuts targeted invalidation in favour
+   * of a full rebuild: it is rare, and the invalidation logic is not worth its bug surface.
+   *
+   * A tip that is no longer *reachable at all* — the usual outcome of an amend — also lands
+   * here, because `isAncestor` on a missing object is false rather than an error.
+   */
+  const stillContained = await backend.isAncestor(parseOid(storedTip), currentTip);
+  return stillContained ? 'fast-forward' : 'history-rewritten';
 }
 
 /**

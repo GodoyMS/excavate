@@ -183,6 +183,41 @@ export async function runGit(command: GitCommand): Promise<string> {
   return Buffer.concat(chunks).toString('utf8');
 }
 
+/**
+ * Like `runGit`, but a non-zero exit yields `null` rather than throwing.
+ *
+ * For commands where failure is a legitimate *answer* and not a fault: `show HEAD:.mailmap`
+ * on a repository that simply has no mailmap is the motivating case. A missing `git` binary
+ * still throws, because that is never an answer.
+ */
+export async function tryRunGit(command: GitCommand): Promise<string | null> {
+  try {
+    return await runGit(command);
+  } catch (error) {
+    if (error instanceof ExcavateError && error.code === 'GIT_UNAVAILABLE') throw error;
+    return null;
+  }
+}
+
+/**
+ * The raw exit code, for the handful of git commands that answer through it.
+ *
+ * `merge-base --is-ancestor` is the reason this exists: 0 and 1 are both successful
+ * computations with opposite meanings, and 128 means an object is missing — which on a
+ * rewritten history is also an answer. Collapsing those into throw/no-throw loses the
+ * distinction the caller needs.
+ */
+export async function exitCodeOfGit(command: GitCommand): Promise<number> {
+  try {
+    await runGit(command);
+    return 0;
+  } catch (error) {
+    if (error instanceof ExcavateError && error.code === 'GIT_UNAVAILABLE') throw error;
+    const { exitCode } = error instanceof ExcavateError ? error.details : {};
+    return typeof exitCode === 'number' ? exitCode : 1;
+  }
+}
+
 /** git's stderr, when the error carries it. Used to classify a failure by cause. */
 export function stderrOf(error: unknown): string {
   if (!(error instanceof ExcavateError)) return '';
