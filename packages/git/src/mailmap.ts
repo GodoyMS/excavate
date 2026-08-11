@@ -8,8 +8,8 @@
  * silently manufactures a knowledge island where none exists.
  */
 
-import type { Identity, Oid } from '@excavate/core';
-import { NotImplementedError } from '@excavate/core';
+import type { Identity, Oid } from '@wise-excavate/core';
+import { NotImplementedError } from '@wise-excavate/core';
 
 /** The repository's own declaration of identity, and always authoritative (Part 8 §8.3.1). */
 export interface Mailmap {

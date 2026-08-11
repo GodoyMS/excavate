@@ -10,7 +10,7 @@
 
 import { existsSync } from 'node:fs';
 
-import { ExcavateError } from '@excavate/core';
+import { ExcavateError } from '@wise-excavate/core';
 
 import type { GitCommand } from './exec.js';
 import { DEFAULT_GIT_BINARY, runGit, stderrOf } from './exec.js';

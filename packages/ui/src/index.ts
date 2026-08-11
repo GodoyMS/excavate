@@ -1,12 +1,12 @@
 /**
- * `@excavate/ui` — the browser application.
+ * `@wise-excavate/ui` — the browser application.
  *
  * **Boundary rule B4: the UI computes nothing analytical.** It renders API responses.
  * Any scoring, ranking, or aggregation that happens here is a divergence between what
  * the GUI says and what the CLI and MCP say about the same repository — which is the
  * one inconsistency users will never forgive.
  *
- * This package targets a browser and depends only on `@excavate/core`, which is
+ * This package targets a browser and depends only on `@wise-excavate/core`, which is
  * possible because core has no `node:` imports and the API contract lives there. Its
  * tsconfig sets `types: []` so a stray Node import fails the build.
  *
@@ -15,8 +15,8 @@
  * skeleton in `./skeleton.ts`, which is scaffolding rather than product.
  */
 
-import type { LensId, ViewId } from '@excavate/core';
-import { NotImplementedError } from '@excavate/core';
+import type { LensId, ViewId } from '@wise-excavate/core';
+import { NotImplementedError } from '@wise-excavate/core';
 
 export { escapeHtml, skeletonPage } from './skeleton.js';
 export type { SkeletonPageConfig } from './skeleton.js';

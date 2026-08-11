@@ -148,7 +148,7 @@ export interface Person {
 /**
  * The hardest identity problem in the project, and the one whose failure is most
  * visible (Part 8 §8.3.2). Named `FileEntity` rather than `File` so it never
- * shadows the DOM `File` inside `@excavate/ui`; the domain term stays "file"
+ * shadows the DOM `File` inside `@wise-excavate/ui`; the domain term stays "file"
  * everywhere a human reads it.
  */
 export interface FileEntity {

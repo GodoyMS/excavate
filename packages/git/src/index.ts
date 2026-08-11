@@ -1,5 +1,5 @@
 /**
- * `@excavate/git` — depth 1.
+ * `@wise-excavate/git` — depth 1.
  *
  * **Responsibility.** All reading of Git object data: history traversal, tree
  * diffing, rename detection, blame, ref and tag enumeration, `.mailmap`, and

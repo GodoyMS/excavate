@@ -9,7 +9,7 @@
  * `Transaction` interface takes batches rather than single entities (LEAN-V1 §5.1).
  *
  * The methods here do no interpretation whatsoever: dense ids, rename resolution and
- * identity merging all happen in `@excavate/index`, which owns those decisions. This
+ * identity merging all happen in `@wise-excavate/index`, which owns those decisions. This
  * file's only job is to move already-decided rows into SQLite as fast as SQLite will
  * take them.
  */
@@ -24,8 +24,8 @@ import type {
   Person,
   Ref,
   Tag,
-} from '@excavate/core';
-import { NotImplementedError, pathId } from '@excavate/core';
+} from '@wise-excavate/core';
+import { NotImplementedError, pathId } from '@wise-excavate/core';
 import type BetterSqlite3 from 'better-sqlite3';
 
 import { bit, changeBind, commitBind, fileBind, personBind } from './codec.js';
@@ -343,7 +343,7 @@ export function createTransactionApi(db: BetterSqlite3.Database): Transaction {
       if (owner !== undefined) {
         throw new TypeError(
           `Transaction.setMeta cannot write the reserved key ${JSON.stringify(key)}: ` +
-            `it is owned by @excavate/store and is written by ${owner}`,
+            `it is owned by @wise-excavate/store and is written by ${owner}`,
         );
       }
       upsertMeta.run(key, value);

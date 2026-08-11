@@ -6,7 +6,7 @@
  * every interface simultaneously. This file is the assertion of that thread and the only
  * test that crosses the whole graph:
  *
- *     @excavate/git-fixtures → git → index → store → server → ui
+ *     @wise-excavate/git-fixtures → git → index → store → server → ui
  *
  * It lives in `tests/` rather than in a package because it belongs to none of them. Every
  * package-owned home for it would need a dependency edge ADR-0001 forbids — `store` has no
@@ -22,14 +22,18 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { CommitDetailDto, CommitListResponse, RepoSummary } from '@excavate/core';
-import { AUTH_SCHEME, DEFAULT_PAGE_SIZE, TIERS, parseOid } from '@excavate/core';
-import type { FixtureRepo } from '@excavate/git-fixtures';
-import { repo } from '@excavate/git-fixtures';
-import type { ExcavateServer } from '@excavate/server';
-import { createServer } from '@excavate/server';
-import { INDEX_FILE_NAME, openStore } from '@excavate/store';
-import { skeletonPage } from '@excavate/ui';
+import type {
+  CommitDetailDto,
+  CommitListResponse,
+  RepoSummary,
+} from '@wise-excavate/core';
+import { AUTH_SCHEME, DEFAULT_PAGE_SIZE, TIERS, parseOid } from '@wise-excavate/core';
+import type { FixtureRepo } from '@wise-excavate/git-fixtures';
+import { repo } from '@wise-excavate/git-fixtures';
+import type { ExcavateServer } from '@wise-excavate/server';
+import { createServer } from '@wise-excavate/server';
+import { INDEX_FILE_NAME, openStore } from '@wise-excavate/store';
+import { skeletonPage } from '@wise-excavate/ui';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 /** The number M0's acceptance criterion names. */
@@ -104,7 +108,7 @@ describe('indexing writes the history to SQLite', () => {
   });
 
   it('reaches the same commits the fixture built, by object id', () => {
-    // `parseOid` rather than a cast: `@excavate/git-fixtures` is deliberately
+    // `parseOid` rather than a cast: `@wise-excavate/git-fixtures` is deliberately
     // zero-dependency, so it hands back a plain string and the domain boundary is crossed
     // explicitly here. The friction is the point — it is also a real assertion that what
     // the fixture produced is a well-formed object id.

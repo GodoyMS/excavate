@@ -10,7 +10,7 @@ incomparable. Add `v2.md`; leave `v1.md` alone.
 Each template is split into a **static** half — identical across every request for that
 version, placed first so a provider can cache it — and a **volatile** half, which is
 the evidence bundle. CI asserts cache effectiveness, which is only possible because the
-split is explicit. See `RenderedPrompt` in [`@excavate/ai`](../packages/ai).
+split is explicit. See `RenderedPrompt` in [`@wise-excavate/ai`](../packages/ai).
 
 Lean v1 ships two pipelines (LEAN-V1 §3.3), both arriving in **M7**:
 

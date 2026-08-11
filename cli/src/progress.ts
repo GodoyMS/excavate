@@ -20,8 +20,8 @@ import type {
   ServerEvent,
   Tier,
   Timestamp,
-} from '@excavate/core';
-import { shortOid, toIsoWithOffset } from '@excavate/core';
+} from '@wise-excavate/core';
+import { shortOid, toIsoWithOffset } from '@wise-excavate/core';
 
 /** The one event the terminal renders. Narrowed here so the rest of the file is total. */
 export type IndexProgressEvent = Extract<ServerEvent, { type: 'index.progress' }>;

@@ -1,10 +1,10 @@
 /**
- * `@excavate/core` — depth 0.
+ * `@wise-excavate/core` — depth 0.
  *
  * Everything depends on this package, so this package depends on nothing. The rule
  * from Part 14 §14.2 carries over verbatim: every dependency core takes is a
  * dependency *everything* takes. It has no runtime dependencies and imports no
- * `node:*` builtin, which is also what lets `@excavate/ui` consume it in a browser.
+ * `node:*` builtin, which is also what lets `@wise-excavate/ui` consume it in a browser.
  *
  * `scripts/check-deps.mjs` enforces both halves of that.
  */

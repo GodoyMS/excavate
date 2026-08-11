@@ -12,8 +12,8 @@ defines five boundary rules that protect those packages from each other:
 
 | #   | Rule                                                               | Prevents                                       |
 | --- | ------------------------------------------------------------------ | ---------------------------------------------- |
-| B1  | Only `@excavate/git` touches the repository                        | Scattered, unbounded Git I/O; untestable code  |
-| B2  | Only `@excavate/store` writes SQL                                  | Schema knowledge leaking into every package    |
+| B1  | Only `@wise-excavate/git` touches the repository                   | Scattered, unbounded Git I/O; untestable code  |
+| B2  | Only `@wise-excavate/store` writes SQL                             | Schema knowledge leaking into every package    |
 | B3  | AI never retrieves; all model input comes from an `EvidenceBundle` | Hallucinated grounding; unreproducible answers |
 | B4  | The UI computes nothing analytical                                 | Divergence between CLI, MCP, and GUI answers   |
 | B5  | Every feature has a no-AI path                                     | Silent dependence on a paid provider           |
@@ -41,7 +41,7 @@ structural as a rule that _must_ be:
 
 Two edges from Part 14 §14.2 are deliberately dropped under point 3:
 
-- **`ai` no longer depends on `evidence` or `store`.** It depends on `@excavate/core`
+- **`ai` no longer depends on `evidence` or `store`.** It depends on `@wise-excavate/core`
   alone. B3 stops being a rule a reviewer enforces and becomes a fact about the
   dependency graph: the package has no store handle, no repository access, and no
   collector to call, so it _cannot_ retrieve. Response caching, the one capability
@@ -50,21 +50,21 @@ Two edges from Part 14 §14.2 are deliberately dropped under point 3:
 - **`evidence` no longer depends on `analysis`.** Every analysis output it needs —
   revert pairs, coupling, ownership — comes from the store's rollup tables, which is
   exactly what B2 buys. Analyzers and collectors become independently testable, and
-  composition order stays the sole responsibility of `@excavate/server`.
+  composition order stays the sole responsibility of `@wise-excavate/server`.
 
 The resulting graph, with depth as the longest path to `core`:
 
 ```
-depth 0  @excavate/core            ← (nothing)
-depth 0  @excavate/git-fixtures    ← (nothing)
-depth 1  @excavate/git             ← core
-depth 1  @excavate/store           ← core
-depth 1  @excavate/ai              ← core
-depth 1  @excavate/ui              ← core
-depth 2  @excavate/index           ← core, git, store
-depth 2  @excavate/analysis        ← core, store
-depth 2  @excavate/evidence        ← core, git, store
-depth 3  @excavate/server          ← everything above except ui
+depth 0  @wise-excavate/core            ← (nothing)
+depth 0  @wise-excavate/git-fixtures    ← (nothing)
+depth 1  @wise-excavate/git             ← core
+depth 1  @wise-excavate/store           ← core
+depth 1  @wise-excavate/ai              ← core
+depth 1  @wise-excavate/ui              ← core
+depth 2  @wise-excavate/index           ← core, git, store
+depth 2  @wise-excavate/analysis        ← core, store
+depth 2  @wise-excavate/evidence        ← core, git, store
+depth 3  @wise-excavate/server          ← everything above except ui
 depth 4  excavate                  ← core, server, ui
 ```
 
@@ -80,7 +80,7 @@ the Tauri shell, `excavate serve`, the CLI, and `excavate mcp` — sitting _abov
 presentation-agnostic daemon, all speaking the same typed API. The process that launches
 the daemon picking its front end is that shape, not a workaround for it.
 
-At M0 the CLI passes `skeletonPage()`. From M3, `@excavate/ui` becomes a real Vite bundle
+At M0 the CLI passes `skeletonPage()`. From M3, `@wise-excavate/ui` becomes a real Vite bundle
 and this becomes a static directory to serve rather than a string to pass; the daemon's side
 of the seam does not change, which is the property that made the seam worth having.
 
@@ -103,7 +103,7 @@ of the seam does not change, which is the property that made the seam worth havi
   cross-package version story.
 - **Cons.** Nothing prevents `ui` from importing `better-sqlite3` or the AI layer from
   reaching into a collector. B1–B3 degrade to naming conventions. It also forecloses
-  publishing `@excavate/git-fixtures` on its own, which is M0's public artifact and
+  publishing `@wise-excavate/git-fixtures` on its own, which is M0's public artifact and
   the project's first credibility-building release.
 - **Why rejected.** The boundary rules are the product's differentiator, not
   housekeeping. A structure that cannot express them is the wrong structure.

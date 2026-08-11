@@ -6,7 +6,7 @@
  * commit whose parent carries a later date, and `--reverse` then emits that commit before
  * its own parent.
  *
- * `@excavate/index` assigns dense `CommitId`s in walk order and writes parent edges as it
+ * `@wise-excavate/index` assigns dense `CommitId`s in walk order and writes parent edges as it
  * goes, so one inverted pair makes `commit_parents.parent_id` reference a row that does not
  * exist yet, and the whole index fails with `FOREIGN KEY constraint failed`.
  *
@@ -26,12 +26,12 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { parseOid, repoId } from '@excavate/core';
-import { DEFAULT_WALK_SPEC, CliGitBackend, walkArgs } from '@excavate/git';
-import type { FixtureRepo } from '@excavate/git-fixtures';
-import { repo } from '@excavate/git-fixtures';
-import { INDEX_FILE_NAME, openStore } from '@excavate/store';
-import { createIndexPipeline } from '@excavate/index';
+import { parseOid, repoId } from '@wise-excavate/core';
+import { DEFAULT_WALK_SPEC, CliGitBackend, walkArgs } from '@wise-excavate/git';
+import type { FixtureRepo } from '@wise-excavate/git-fixtures';
+import { repo } from '@wise-excavate/git-fixtures';
+import { INDEX_FILE_NAME, openStore } from '@wise-excavate/store';
+import { createIndexPipeline } from '@wise-excavate/index';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 let fixture: FixtureRepo;

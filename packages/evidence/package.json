@@ -1,5 +1,5 @@
 {
-  "name": "@excavate/evidence",
+  "name": "@wise-excavate/evidence",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -15,8 +15,8 @@
     "dist"
   ],
   "dependencies": {
-    "@excavate/core": "workspace:*",
-    "@excavate/git": "workspace:*",
-    "@excavate/store": "workspace:*"
+    "@wise-excavate/core": "workspace:*",
+    "@wise-excavate/git": "workspace:*",
+    "@wise-excavate/store": "workspace:*"
   }
 }

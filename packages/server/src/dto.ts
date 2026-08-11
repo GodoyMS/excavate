@@ -15,9 +15,9 @@ import type {
   CommitSummaryDto,
   Oid,
   PersonId,
-} from '@excavate/core';
-import { ExcavateError } from '@excavate/core';
-import type { Store } from '@excavate/store';
+} from '@wise-excavate/core';
+import { ExcavateError } from '@wise-excavate/core';
+import type { Store } from '@wise-excavate/store';
 
 /** Shown when a commit's author cannot be resolved, which should only happen on a partial index. */
 const UNKNOWN_PERSON = 'unknown';
@@ -60,7 +60,7 @@ export function toCommitDetail(store: Store, commit: Commit): CommitDetailDto {
  * Resolve a stored parent edge to an object id, or refuse.
  *
  * **An unresolvable parent is not filtered out**, which is what an earlier draft did.
- * `Commit.parents` holds only the parents the walk actually saw — `@excavate/index` drops
+ * `Commit.parents` holds only the parents the walk actually saw — `@wise-excavate/index` drops
  * the excluded side of a merge itself, so a projection artifact never reaches here — and
  * `commit_parents.parent_id` is a foreign key into `commits`. An id in that list with no
  * row behind it therefore means the index is damaged, and quietly serving a commit with

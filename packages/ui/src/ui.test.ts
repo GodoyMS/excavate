@@ -3,8 +3,14 @@ import type {
   CommitListResponse,
   CommitSummaryDto,
   RepoSummary,
-} from '@excavate/core';
-import { LENSES, NotImplementedError, VIEWS, parseOid, repoId } from '@excavate/core';
+} from '@wise-excavate/core';
+import {
+  LENSES,
+  NotImplementedError,
+  VIEWS,
+  parseOid,
+  repoId,
+} from '@wise-excavate/core';
 import { describe, expect, it, vi } from 'vitest';
 
 import {

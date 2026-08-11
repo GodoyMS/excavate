@@ -26,7 +26,7 @@ import type {
   RepoSummary,
   Tier,
   Timestamp,
-} from '@excavate/core';
+} from '@wise-excavate/core';
 import {
   ExcavateError,
   TIERS,
@@ -35,15 +35,15 @@ import {
   repoId as brandRepoId,
   timestamp,
   toErrorPayload,
-} from '@excavate/core';
-import type { GitBackend } from '@excavate/git';
-import { CliGitBackend, DEFAULT_WALK_SPEC, discoverRepository } from '@excavate/git';
+} from '@wise-excavate/core';
+import type { GitBackend } from '@wise-excavate/git';
+import { CliGitBackend, DEFAULT_WALK_SPEC, discoverRepository } from '@wise-excavate/git';
 /* `META_KEYS` rather than the literal strings: the walk writes these rows and the daemon
    reads them, so a key spelled two ways in two packages is a bug neither the typechecker
    nor a unit test would catch — it would simply report `null` forever. */
-import { META_KEYS, computeRepoId, createIndexPipeline } from '@excavate/index';
-import type { Store } from '@excavate/store';
-import { INDEX_FILE_NAME, openStore } from '@excavate/store';
+import { META_KEYS, computeRepoId, createIndexPipeline } from '@wise-excavate/index';
+import type { Store } from '@wise-excavate/store';
+import { INDEX_FILE_NAME, openStore } from '@wise-excavate/store';
 
 import { createProgressBus } from './bus.js';
 import type { RepoSession, ServerOptions } from './index.js';
@@ -63,7 +63,7 @@ const SESSION_CONCURRENCY = 1;
 const NULL_OID: Oid = parseOid('0'.repeat(40));
 
 /**
- * The tiers `@excavate/index` actually builds today.
+ * The tiers `@wise-excavate/index` actually builds today.
  *
  * **This constant is the difference between honest and silently wrong.**
  * `createIndexPipeline` reports progress but never says "this tier is finished", and at
@@ -74,8 +74,8 @@ const NULL_OID: Oid = parseOid('0'.repeat(40));
  * requested tier — which an earlier draft did — therefore told every client that the
  * analysis tier had been built, while `RepoSummary.partial` said `null`.
  *
- * Delete this the moment `@excavate/index` reports tier completion itself or
- * `@excavate/store` grows a meta read. Both are M1.
+ * Delete this the moment `@wise-excavate/index` reports tier completion itself or
+ * `@wise-excavate/store` grows a meta read. Both are M1.
  */
 export const IMPLEMENTED_TIERS: readonly Tier[] = ['metadata'];
 
@@ -86,7 +86,7 @@ export function unbuiltTiers(requested: readonly Tier[]): readonly Tier[] {
 
 /**
  * The badge for an index that is missing whole tiers. `tier-failed` is the same reason
- * `@excavate/index` records for the same situation — from the caller's side "not written
+ * `@wise-excavate/index` records for the same situation — from the caller's side "not written
  * yet" is a failure to produce the tier — and using a different one would make the two
  * halves of the same fact disagree.
  */
@@ -120,7 +120,7 @@ export async function openSession(options: ServerOptions): Promise<RepoSession> 
 
   /* Part 7 §7.7 wants a corrupt index detected on open — but `PRAGMA integrity_check`
      reads every page of a file that is ~130 MB for a 100k-commit repository, and
-     `@excavate/store` is explicit that paying that on every open trades the thing the
+     `@wise-excavate/store` is explicit that paying that on every open trades the thing the
      product is judged on (how fast reopening feels) for a check that only matters after a
      crash. So it is opt-in, and the daemon has nothing to base "reason to distrust" on
      until the store exposes the durable index state. `excavate doctor` (M6) passes it. */
@@ -152,7 +152,7 @@ export async function openSession(options: ServerOptions): Promise<RepoSession> 
      *
      * It is taken as-is rather than re-walked: `detectUpdateKind` — the "compare stored
      * refs against current refs, then serve instantly or walk the difference" half of
-     * Part 7 §7.5 — is a `NotImplementedError` until M1, and `@excavate/store`'s
+     * Part 7 §7.5 — is a `NotImplementedError` until M1, and `@wise-excavate/store`'s
      * `insertCommits` is a plain INSERT, so a second walk over a populated index would
      * collide on every primary key rather than update anything.
      *
@@ -231,7 +231,7 @@ export async function openSession(options: ServerOptions): Promise<RepoSession> 
       bus.publish({ type: 'job.done', job });
     } catch (error) {
       if (isExcavateError(error) && error.code === 'CANCELLED') {
-        /* `@excavate/index` commits the rows it already had and marks the durable state
+        /* `@wise-excavate/index` commits the rows it already had and marks the durable state
            `stale` with an `interrupted` badge *before* throwing `CANCELLED`, so a
            cancelled walk leaves a usable partial index. Reporting that as `failed` would
            overstate it; reporting it as `ready` would hide it. The tiers are marked
@@ -266,7 +266,7 @@ export async function openSession(options: ServerOptions): Promise<RepoSession> 
         commitCount: store.commits.count(),
         personCount: store.people.count(),
         fileCount: store.files.count(),
-        /* Read back from the meta rows the walk wrote (`META_KEYS` in `@excavate/index`)
+        /* Read back from the meta rows the walk wrote (`META_KEYS` in `@wise-excavate/index`)
            through `Store.meta`, so the SQL stays inside the store and boundary rule B2
            holds. A missing or malformed pair still yields `null`, and `formatIndexSummary`
            in the CLI omits the range rather than guessing one. */
@@ -312,7 +312,7 @@ export async function openSession(options: ServerOptions): Promise<RepoSession> 
 /**
  * The interruption an *earlier* process recorded, if any.
  *
- * `@excavate/index` flattens `PartialIndexBadge` into two meta rows and writes the empty
+ * `@wise-excavate/index` flattens `PartialIndexBadge` into two meta rows and writes the empty
  * string for "not partial", because `Transaction` has no delete and absence has to be
  * representable. Only an `interrupted` reason is carried over: a `tier-failed` badge is
  * recomputed from `unbuiltTiers` on every open and is therefore always current, whereas a
@@ -418,7 +418,7 @@ async function rootCommitOid(backend: GitBackend): Promise<string> {
  * Read through `refs()` rather than `head()` and a `catch`, deliberately. `refs()` is the
  * accessor that swallows exactly the unborn-HEAD failure and rethrows everything else, so
  * "this repository has no commits" stays distinguishable from "we could not find out" —
- * collapsing those two is the confusion `@excavate/git` exists to prevent, and a session
+ * collapsing those two is the confusion `@wise-excavate/git` exists to prevent, and a session
  * that reported the null oid because git had gone missing would be lying quietly.
  */
 async function currentHead(backend: GitBackend): Promise<Oid> {

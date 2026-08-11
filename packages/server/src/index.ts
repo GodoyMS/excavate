@@ -1,5 +1,5 @@
 /**
- * `@excavate/server` — the daemon, and the composition root.
+ * `@wise-excavate/server` — the daemon, and the composition root.
  *
  * **This is the only package that knows about all the others.** That is deliberate
  * (Part 14 §14.2): keeping composition in exactly one place is what keeps the rest of
@@ -7,7 +7,7 @@
  * that connects an analyzer's output to a collector's input lives here, not in an
  * import between them.
  *
- * Note what it does *not* depend on: `@excavate/ui`. The browser bundle is a build
+ * Note what it does *not* depend on: `@wise-excavate/ui`. The browser bundle is a build
  * artifact this package serves as static files, not a module it imports. A code edge
  * there would drag React into the daemon's type graph for no reason.
  *
@@ -18,14 +18,14 @@
  *
  * The implementation is split by concern — `security.ts`, `app.ts`, `http.ts`,
  * `session.ts`, `bus.ts`, `jobs.ts`, `dto.ts` — and this file is the contract those
- * modules implement. Every type that crosses the wire lives in `@excavate/core`'s
+ * modules implement. Every type that crosses the wire lives in `@wise-excavate/core`'s
  * `api.ts` instead, so `ui` can depend on the contract without depending on the daemon.
  */
 
-import type { RepoId, RepoSummary, ServerEvent, Tier } from '@excavate/core';
-import { BIND_HOST, ExcavateError, TOKEN_QUERY_PARAM } from '@excavate/core';
-import type { GitBackend } from '@excavate/git';
-import type { Store } from '@excavate/store';
+import type { RepoId, RepoSummary, ServerEvent, Tier } from '@wise-excavate/core';
+import { BIND_HOST, ExcavateError, TOKEN_QUERY_PARAM } from '@wise-excavate/core';
+import type { GitBackend } from '@wise-excavate/git';
+import type { Store } from '@wise-excavate/store';
 
 import { createApp } from './app.js';
 import type { Listener } from './http.js';
@@ -47,7 +47,7 @@ export interface ServerOptions {
    * Run `Store.integrityCheck()` before serving, failing with `INDEX_CORRUPT` if it
    * reports problems.
    *
-   * Off by default, and that is `@excavate/store`'s explicit instruction rather than a
+   * Off by default, and that is `@wise-excavate/store`'s explicit instruction rather than a
    * shortcut: the check reads every page of the file — seconds on the ~130 MB index a
    * 100k-commit repository produces — so running it on every open would trade how fast
    * reopening a repository feels for a check that matters after a crash. `excavate doctor`
@@ -59,7 +59,7 @@ export interface ServerOptions {
    *
    * Passed in rather than imported because ADR-0001 forbids a `server → ui` edge: the
    * browser application is a static artifact the daemon serves, not a module it links
-   * against. At M0 the caller supplies `skeletonPage()` from `@excavate/ui`; from M3 it
+   * against. At M0 the caller supplies `skeletonPage()` from `@wise-excavate/ui`; from M3 it
    * is the bundle's `index.html`. Omitted, `/` explains that no UI was supplied — the
    * API itself is unaffected.
    */

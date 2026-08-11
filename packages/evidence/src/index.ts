@@ -1,5 +1,5 @@
 /**
- * `@excavate/evidence` — the heart of the product.
+ * `@wise-excavate/evidence` — the heart of the product.
  *
  * **Responsibility.** Given a target, assemble a ranked, budget-fitted
  * `EvidenceBundle`.
@@ -16,13 +16,13 @@
  * ---
  *
  * **Deliberate deviation from Part 14 §14.2: this package does not depend on
- * `@excavate/analysis`.**
+ * `@wise-excavate/analysis`.**
  *
  * Every analysis output it needs — revert pairs, coupling, ownership — is read from
  * the store's rollup tables, which is precisely what boundary rule B2 buys. Dropping
  * the edge means analyzers and collectors can be developed and tested independently,
  * and the composition order stays the sole responsibility of the composition root
- * (`@excavate/server`).
+ * (`@wise-excavate/server`).
  */
 
 import type {
@@ -32,10 +32,10 @@ import type {
   EvidenceBundle,
   Gap,
   Target,
-} from '@excavate/core';
-import { NotImplementedError, collectorId } from '@excavate/core';
-import type { GitBackend } from '@excavate/git';
-import type { Store } from '@excavate/store';
+} from '@wise-excavate/core';
+import { NotImplementedError, collectorId } from '@wise-excavate/core';
+import type { GitBackend } from '@wise-excavate/git';
+import type { Store } from '@wise-excavate/store';
 
 export interface EvidenceContext {
   readonly store: Store;

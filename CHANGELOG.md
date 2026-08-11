@@ -28,7 +28,7 @@ that its answers can be trusted must never let a changelog imply a capability it
 not have. `excavate --help` and those errors, not this file, are the authority on what
 runs today.
 
-`@excavate/git-fixtures` is the **first published artifact** — M0's public deliverable,
+`@wise-excavate/git-fixtures` is the **first published artifact** — M0's public deliverable,
 released on its own ahead of anything else. It is genuinely useful outside this
 repository (deterministic Git repositories are hard to build and every project testing
 Git tooling needs them), which is why it ships first: it earns a small audience while
@@ -77,12 +77,12 @@ the product that depends on it is still being built.
   of permitted edges against every `package.json` and `tsconfig.json`: illegal edges,
   phantom dependencies, `workspace:*` protocol, `tsconfig` reference drift, and
   acyclicity with computed depths. It also enforces boundary rules B1 (only
-  `@excavate/git` may import `node:child_process`) and B2 (only `@excavate/store` may
+  `@wise-excavate/git` may import `node:child_process`) and B2 (only `@wise-excavate/store` may
   import a SQLite driver) mechanically rather than in review — there is no reviewer.
-  B3 ("AI never retrieves") is enforced structurally instead: `@excavate/ai` depends on
-  `@excavate/core` alone, so it has no store handle, no repository access, and no
+  B3 ("AI never retrieves") is enforced structurally instead: `@wise-excavate/ai` depends on
+  `@wise-excavate/core` alone, so it has no store handle, no repository access, and no
   collector to call. See [ADR-0001](docs/adr/0001-package-graph.md).
-- **`@excavate/git-fixtures`** — the `repo()` DSL, and the isolation layer underneath
+- **`@wise-excavate/git-fixtures`** — the `repo()` DSL, and the isolation layer underneath
   it. Builders for commit, add, edit, rename, delete, branch, checkout, merge, revert,
   tag, mailmap, and blame-ignore, plus the named fixture matrix — an explicit list
   rather than whatever files happen to exist in a directory, trimmed per
@@ -94,14 +94,14 @@ the product that depends on it is still being built.
   nothing about the machine that built it. Pinning only the author date is the classic
   version of this bug: the committer date then defaults to "now" and every OID changes
   on every run.
-- **SQLite schema v1, as an ordered migration list.** `@excavate/store` owns the whole
+- **SQLite schema v1, as an ordered migration list.** `@wise-excavate/store` owns the whole
   schema and is the only package permitted to write SQL. One file on disk (`index.db`),
   FTS5 inside it, no sidecars. `SCHEMA_VERSION` is derived from the migration list
   rather than declared beside it, so the two cannot disagree, and the list is asserted
   sequential and gapless. Rollups, `hunks`, and the bundle cache are deliberately absent
   from v1 — they arrive in `0002`/`0003` with the code that fills them, so
   `schema_version` never claims the index contains something it does not.
-- **The daemon.** `@excavate/server` on Hono, with server-sent events for progress
+- **The daemon.** `@wise-excavate/server` on Hono, with server-sent events for progress
   (strictly server-to-client, so no WebSocket upgrade handshake and no
   origin-validation surface on the stream), a per-session bearer token, an `Origin`
   allowlist against DNS rebinding, and a one-walk-at-a-time job queue. It is also the
@@ -120,7 +120,7 @@ the product that depends on it is still being built.
   serves them, and a plain HTML page lists them and shows a commit message on click.
   Deliberately ugly and explicitly disposable — M3 replaces it wholesale. Two details in
   it are contractual rather than incidental: route strings come from `ROUTES` in
-  `@excavate/core`, so the page cannot drift from the daemon's route table, and commit
+  `@wise-excavate/core`, so the page cannot drift from the daemon's route table, and commit
   text reaches the DOM through `textContent` only, because commit messages are
   attacker-controlled text in a tool people point at untrusted repositories. The page is
   handed to the daemon as a string (`ServerOptions.indexHtml`) rather than imported,

@@ -1,12 +1,12 @@
 /**
- * `@excavate/ai` — providers, pipelines, prompts, validator, budget.
+ * `@wise-excavate/ai` — providers, pipelines, prompts, validator, budget.
  *
  * **Non-goals.** No retrieval. No scoring. No UI state.
  *
  * ---
  *
  * **Deliberate deviation from Part 14 §14.2, and the most important line in this
- * file: this package depends on `@excavate/core` and nothing else.**
+ * file: this package depends on `@wise-excavate/core` and nothing else.**
  *
  * Part 14 had the AI crate depend on `evidence` and `store`. Boundary rule B3 — *"AI
  * never retrieves; all model input comes from an `EvidenceBundle`"* — was then a rule
@@ -23,8 +23,8 @@
  * fills in: `GenerationCache` for response caching, and the caller passing bundles.
  */
 
-import type { Confidence, EvidenceBundle, EvidenceId } from '@excavate/core';
-import { NotImplementedError } from '@excavate/core';
+import type { Confidence, EvidenceBundle, EvidenceId } from '@wise-excavate/core';
+import { NotImplementedError } from '@wise-excavate/core';
 
 /* ── Providers ─────────────────────────────────────────────────────────────── */
 

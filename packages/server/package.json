@@ -1,5 +1,5 @@
 {
-  "name": "@excavate/server",
+  "name": "@wise-excavate/server",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -15,13 +15,13 @@
     "dist"
   ],
   "dependencies": {
-    "@excavate/ai": "workspace:*",
-    "@excavate/analysis": "workspace:*",
-    "@excavate/core": "workspace:*",
-    "@excavate/evidence": "workspace:*",
-    "@excavate/git": "workspace:*",
-    "@excavate/index": "workspace:*",
-    "@excavate/store": "workspace:*",
+    "@wise-excavate/ai": "workspace:*",
+    "@wise-excavate/analysis": "workspace:*",
+    "@wise-excavate/core": "workspace:*",
+    "@wise-excavate/evidence": "workspace:*",
+    "@wise-excavate/git": "workspace:*",
+    "@wise-excavate/index": "workspace:*",
+    "@wise-excavate/store": "workspace:*",
     "@hono/node-server": "^2.1.0",
     "hono": "^4.13.0"
   }

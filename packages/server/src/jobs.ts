@@ -8,7 +8,7 @@
  * requeueing — would be code with no caller.
  */
 
-import { ExcavateError } from '@excavate/core';
+import { ExcavateError } from '@wise-excavate/core';
 
 import type { JobQueue } from './index.js';
 

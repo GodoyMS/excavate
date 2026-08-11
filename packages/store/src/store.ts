@@ -13,8 +13,8 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-import type { IndexState, RepoId } from '@excavate/core';
-import { ExcavateError, INDEX_STATES } from '@excavate/core';
+import type { IndexState, RepoId } from '@wise-excavate/core';
+import { ExcavateError, INDEX_STATES } from '@wise-excavate/core';
 import BetterSqlite3 from 'better-sqlite3';
 
 import {

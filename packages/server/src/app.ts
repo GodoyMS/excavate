@@ -11,7 +11,7 @@
  * without either half knowing how the other was constructed.
  *
  * Route strings, status-bearing error codes, and the event union all come from
- * `@excavate/core`'s `api.ts`. Nothing here invents a path.
+ * `@wise-excavate/core`'s `api.ts`. Nothing here invents a path.
  */
 
 import { readFileSync } from 'node:fs';
@@ -23,7 +23,7 @@ import type {
   HealthResponse,
   HistoryProjection,
   ServerEvent,
-} from '@excavate/core';
+} from '@wise-excavate/core';
 import {
   API_VERSION,
   DEFAULT_PAGE_SIZE,
@@ -36,7 +36,7 @@ import {
   isOid,
   parseOid,
   toErrorPayload,
-} from '@excavate/core';
+} from '@wise-excavate/core';
 import { Hono } from 'hono';
 import type { Context, MiddlewareHandler } from 'hono';
 import type { SSEStreamingApi } from 'hono/streaming';
@@ -85,7 +85,7 @@ export interface DaemonApp {
 
 /**
  * HTTP status per error code, exhaustive by construction: adding an `ErrorCode` in
- * `@excavate/core` without deciding its status is a compile error rather than a silent
+ * `@wise-excavate/core` without deciding its status is a compile error rather than a silent
  * 500 discovered in production.
  */
 const ERROR_STATUS: Readonly<Record<ErrorCode, ContentfulStatusCode>> = {
@@ -367,7 +367,7 @@ function readServerVersion(): string {
 /**
  * The fallback document for `/` when no UI has been handed to the daemon.
  *
- * `@excavate/server` must not import `@excavate/ui` (ADR-0001: the browser bundle is a
+ * `@wise-excavate/server` must not import `@wise-excavate/ui` (ADR-0001: the browser bundle is a
  * static artifact the daemon serves, not a module it imports), so the page arrives
  * through `ServerOptions.indexHtml`. When it has not, saying so plainly beats a 404 that
  * looks like a broken daemon.

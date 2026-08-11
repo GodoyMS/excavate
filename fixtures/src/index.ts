@@ -1,19 +1,19 @@
 /**
- * `@excavate/git-fixtures` — build real Git repositories deterministically.
+ * `@wise-excavate/git-fixtures` — build real Git repositories deterministically.
  *
  * The highest-value item in M0 (Part 15) and one of the things LEAN-V1 §4 says must
  * not be touched: *"~300 lines, and it is the only way to test Git tooling
  * deterministically."* Every later milestone's testing rests on it. Write the fixture
  * matrix before the implementation, not after.
  *
- * **Deliberately zero dependencies — not even `@excavate/core`.**
+ * **Deliberately zero dependencies — not even `@wise-excavate/core`.**
  *
  * This package is published on its own as a standalone testing library (ROADMAP M0's
  * public artifact), and a general-purpose Git fixture builder should not drag one
  * project's domain model in with it. So OIDs are plain strings here. The coupling
  * would also make publishing it require publishing core, for no benefit to either.
  *
- * **On repositories and boundary rule B1.** B1 says only `@excavate/git` touches a
+ * **On repositories and boundary rule B1.** B1 says only `@wise-excavate/git` touches a
  * repository. This package shells out to `git` too, and the exemption is narrow and
  * deliberate: it only ever *creates* fixtures in a temporary directory, and never
  * reads a user's repository. `scripts/check-deps.mjs` allows exactly these two

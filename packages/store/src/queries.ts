@@ -38,8 +38,8 @@ import type {
   PathId,
   Release,
   RevertPair,
-} from '@excavate/core';
-import { NotImplementedError } from '@excavate/core';
+} from '@wise-excavate/core';
+import { NotImplementedError } from '@wise-excavate/core';
 import type BetterSqlite3 from 'better-sqlite3';
 
 import type {

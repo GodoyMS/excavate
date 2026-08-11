@@ -31,7 +31,7 @@
  *   few hundred rows the space saved by a code is noise.
  *
  * **Deviations from the abbreviated DDL in Part 9 §9.4**, each because the TypeScript
- * domain model in `@excavate/core` is the contract this package must round-trip:
+ * domain model in `@wise-excavate/core` is the contract this package must round-trip:
  *
  * - `oid` is `TEXT`, not `BLOB`. `Oid` is a branded *string*; storing a blob would
  *   mean a hex↔`Buffer` conversion on every row read and written, and would make

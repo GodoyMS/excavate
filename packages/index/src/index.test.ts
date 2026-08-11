@@ -26,17 +26,17 @@ import type {
   Oid,
   PathId,
   Person,
-} from '@excavate/core';
+} from '@wise-excavate/core';
 import {
   isExcavateError,
   NotImplementedError,
   parseOid,
   pathId,
   timestamp,
-} from '@excavate/core';
-import type { GitBackend, RawChange, RawCommit } from '@excavate/git';
-import { DEFAULT_WALK_SPEC } from '@excavate/git';
-import type { Store, Transaction } from '@excavate/store';
+} from '@wise-excavate/core';
+import type { GitBackend, RawChange, RawCommit } from '@wise-excavate/git';
+import { DEFAULT_WALK_SPEC } from '@wise-excavate/git';
+import type { Store, Transaction } from '@wise-excavate/store';
 import { describe, expect, it } from 'vitest';
 
 import type { IndexProgress, IndexRunOptions, WalkContext, WalkSink } from './index.js';

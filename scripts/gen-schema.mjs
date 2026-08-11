@@ -2,7 +2,7 @@
  * Generate `docs/schema.md` from the migration list.
  *
  * Part 14 §14.5 lists `docs/schema.md` as a generated, checked-in artifact, and five doc
- * comments across `@excavate/store` point readers at it. It did not exist, which made those
+ * comments across `@wise-excavate/store` point readers at it. It did not exist, which made those
  * comments false — and left schema v1 reviewable only by reading a TypeScript template
  * literal.
  *

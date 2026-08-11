@@ -33,9 +33,9 @@ import type {
   Person,
   PersonId,
   Timestamp,
-} from '@excavate/core';
-import { compareTimestamps, fileId, personId } from '@excavate/core';
-import type { RawChange, RawCommit } from '@excavate/git';
+} from '@wise-excavate/core';
+import { compareTimestamps, fileId, personId } from '@wise-excavate/core';
+import type { RawChange, RawCommit } from '@wise-excavate/git';
 
 /* ── Identity ──────────────────────────────────────────────────────────────── */
 

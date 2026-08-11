@@ -18,10 +18,10 @@ import {
   NotImplementedError,
   TIERS,
   isExcavateError,
-} from '@excavate/core';
-import type { RepoSession } from '@excavate/server';
-import { createServer, openSession } from '@excavate/server';
-import { skeletonPage } from '@excavate/ui';
+} from '@wise-excavate/core';
+import type { RepoSession } from '@wise-excavate/server';
+import { createServer, openSession } from '@wise-excavate/server';
+import { skeletonPage } from '@wise-excavate/ui';
 import { Command, CommanderError, InvalidArgumentError } from 'commander';
 
 import {
@@ -211,7 +211,7 @@ export function resolveArgv(argv: readonly string[]): string[] {
  * What indexing needs from a session, and no more.
  *
  * `Pick` rather than a hand-written interface, so it stays welded to `RepoSession` — a
- * signature change over in `@excavate/server` is a type error here, not a surprise at
+ * signature change over in `@wise-excavate/server` is a type error here, not a surprise at
  * runtime. Narrowing it this far is also what lets {@link indexWith} be tested against a
  * real `ProgressBus` with no repository, no store, and no casts.
  */
@@ -320,7 +320,7 @@ async function runOpen(io: CliIo, path: string, port: number): Promise<number> {
      the shape Part 7 §7.1 describes — the Tauri shell, `serve`, the CLI, and `mcp` are
      four presentation surfaces *above* one presentation-agnostic daemon.
 
-     From M3 `@excavate/ui` is a real Vite bundle and this becomes a static directory to
+     From M3 `@wise-excavate/ui` is a real Vite bundle and this becomes a static directory to
      serve rather than a string to pass; the daemon's side of the seam does not change. */
   const server = await createServer({
     repoRoot: resolve(path),

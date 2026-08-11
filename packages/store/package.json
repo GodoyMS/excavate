@@ -1,5 +1,5 @@
 {
-  "name": "@excavate/store",
+  "name": "@wise-excavate/store",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -15,7 +15,7 @@
     "dist"
   ],
   "dependencies": {
-    "@excavate/core": "workspace:*",
+    "@wise-excavate/core": "workspace:*",
     "better-sqlite3": "^13.0.2"
   },
   "devDependencies": {

@@ -1,5 +1,5 @@
 {
-  "name": "excavate",
+  "name": "wise-excavate",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -18,9 +18,9 @@
     "dist"
   ],
   "dependencies": {
-    "@excavate/core": "workspace:*",
-    "@excavate/server": "workspace:*",
-    "@excavate/ui": "workspace:*",
+    "@wise-excavate/core": "workspace:*",
+    "@wise-excavate/server": "workspace:*",
+    "@wise-excavate/ui": "workspace:*",
     "commander": "^15.0.0"
   }
 }

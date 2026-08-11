@@ -1,7 +1,7 @@
 /**
  * The row↔entity boundary.
  *
- * Every conversion between a SQLite row and a `@excavate/core` entity happens here and
+ * Every conversion between a SQLite row and a `@wise-excavate/core` entity happens here and
  * nowhere else, for the same reason boundary rule B2 exists at all: an encoding that
  * is applied in four places will eventually be applied differently in one of them.
  *
@@ -9,7 +9,7 @@
  * compatible change. Renumbering one silently reinterprets every existing row, which
  * no migration can detect and no integrity check can catch — so don't. Each table is
  * written as `satisfies Record<Union, number>` so that adding a member to the union in
- * `@excavate/core` is a compile error here rather than a runtime `undefined`.
+ * `@wise-excavate/core` is a compile error here rather than a runtime `undefined`.
  */
 
 import type {
@@ -24,7 +24,7 @@ import type {
   PathAlias,
   Person,
   Trailer,
-} from '@excavate/core';
+} from '@wise-excavate/core';
 import {
   ExcavateError,
   commitId,
@@ -32,7 +32,7 @@ import {
   pathId,
   personId,
   timestamp,
-} from '@excavate/core';
+} from '@wise-excavate/core';
 
 /* ── Flag bitmasks ─────────────────────────────────────────────────────────── */
 

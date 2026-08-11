@@ -1,5 +1,5 @@
 /**
- * `@excavate/analysis` — depth 2.
+ * `@wise-excavate/analysis` — depth 2.
  *
  * **Responsibility.** Every derived, deterministic fact: significance scoring,
  * ownership with recency decay, bus factor, knowledge islands, co-change coupling,
@@ -19,9 +19,9 @@ import type {
   Hotspot,
   Ownership,
   RevertPair,
-} from '@excavate/core';
-import { NotImplementedError, analyzerId } from '@excavate/core';
-import type { Store } from '@excavate/store';
+} from '@wise-excavate/core';
+import { NotImplementedError, analyzerId } from '@wise-excavate/core';
+import type { Store } from '@wise-excavate/store';
 
 export interface AnalysisContext {
   readonly store: Store;

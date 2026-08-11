@@ -31,11 +31,11 @@
  *   showing it without the badge the daemon supplied would be this product's worst
  *   failure mode (Part 7 §7.7, honest degradation).
  *
- * Route strings come from `ROUTES` in `@excavate/core` rather than being written out
+ * Route strings come from `ROUTES` in `@wise-excavate/core` rather than being written out
  * here, so the page cannot drift from the daemon's route table.
  */
 
-import { AUTH_SCHEME, ROUTES, TOKEN_QUERY_PARAM } from '@excavate/core';
+import { AUTH_SCHEME, ROUTES, TOKEN_QUERY_PARAM } from '@wise-excavate/core';
 
 export interface SkeletonPageConfig {
   /**

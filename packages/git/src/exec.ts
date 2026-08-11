@@ -12,7 +12,7 @@
 
 import { spawn } from 'node:child_process';
 
-import { ExcavateError } from '@excavate/core';
+import { ExcavateError } from '@wise-excavate/core';
 
 export const DEFAULT_GIT_BINARY = 'git';
 

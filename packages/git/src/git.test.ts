@@ -12,7 +12,7 @@
  * `cli-backend.test.ts`.
  */
 
-import { NotImplementedError, isExcavateError, parseOid } from '@excavate/core';
+import { NotImplementedError, isExcavateError, parseOid } from '@wise-excavate/core';
 import { describe, expect, it } from 'vitest';
 
 import {

@@ -8,7 +8,7 @@
  * measurable and pointless.
  */
 
-import type { ServerEvent } from '@excavate/core';
+import type { ServerEvent } from '@wise-excavate/core';
 
 import type { ProgressBus } from './index.js';
 

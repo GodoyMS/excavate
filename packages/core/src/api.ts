@@ -6,7 +6,7 @@
  * there is exactly one definition of every type that crosses the wire (LEAN-V1
  * §3.1).
  *
- * It lives in `@excavate/core` rather than `@excavate/server` on purpose. `ui`
+ * It lives in `@wise-excavate/core` rather than `@wise-excavate/server` on purpose. `ui`
  * needs these types and must not depend on `server` — that would pull Hono and
  * `node:*` into the browser build. Both sides depend on the contract; neither
  * depends on the other.

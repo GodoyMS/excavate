@@ -3,15 +3,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 
-import type { RepoSummary, ServerEvent, Tier } from '@excavate/core';
+import type { RepoSummary, ServerEvent, Tier } from '@wise-excavate/core';
 import {
   ExcavateError,
   NotImplementedError,
   TIERS,
   parseOid,
   repoId,
-} from '@excavate/core';
-import { createProgressBus } from '@excavate/server';
+} from '@wise-excavate/core';
+import { createProgressBus } from '@wise-excavate/server';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { CliIo, CommandSpec, IndexableSession } from './index.js';

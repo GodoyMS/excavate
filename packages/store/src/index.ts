@@ -1,5 +1,5 @@
 /**
- * `@excavate/store` — depth 1.
+ * `@wise-excavate/store` — depth 1.
  *
  * **Responsibility.** Schema, migrations, transactions, batched writes, typed
  * queries, the derived rollup tables, and FTS5.
@@ -45,7 +45,7 @@ import type {
   Timestamp,
   Change,
   BundleHash,
-} from '@excavate/core';
+} from '@wise-excavate/core';
 
 import { latestSchemaVersion, migrations } from './migrations/index.js';
 

@@ -14,7 +14,7 @@ import type {
   Person,
   RepoSummary,
   ServerEvent,
-} from '@excavate/core';
+} from '@wise-excavate/core';
 import {
   API_VERSION,
   AUTH_SCHEME,
@@ -30,9 +30,9 @@ import {
   personId,
   repoId,
   timestamp,
-} from '@excavate/core';
-import type { GitBackend } from '@excavate/git';
-import type { Page, PageRequest, Store } from '@excavate/store';
+} from '@wise-excavate/core';
+import type { GitBackend } from '@wise-excavate/git';
+import type { Page, PageRequest, Store } from '@wise-excavate/store';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { DaemonApp } from './app.js';
@@ -757,7 +757,7 @@ describe('createServer', () => {
 
 describe('tier honesty', () => {
   it('names the tiers this release cannot build, so they are never announced complete', () => {
-    // `@excavate/index` implements `metadata` only and defers `analysis` with a
+    // `@wise-excavate/index` implements `metadata` only and defers `analysis` with a
     // `tier-failed` badge, while `excavate index` asks for both. This is the constant that
     // keeps the daemon from blessing the tier it did not build. When M1 implements the
     // analysis tier, this test is the one that has to change.
@@ -779,7 +779,7 @@ describe('tier honesty', () => {
 /**
  * The one test that runs the composition root against real Git, a real SQLite index, and
  * the real walk — the integration my own report called the most valuable thing to write
- * next, now that `@excavate/git`, `@excavate/store`, and `@excavate/index` have landed.
+ * next, now that `@wise-excavate/git`, `@wise-excavate/store`, and `@wise-excavate/index` have landed.
  *
  * It indexes *this* repository, which is the only one guaranteed to exist wherever the
  * suite runs, into a throwaway index directory. Every assertion is therefore phrased

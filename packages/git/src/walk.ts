@@ -24,8 +24,8 @@ import type {
   Identity,
   Oid,
   Timestamp,
-} from '@excavate/core';
-import { ExcavateError, isOid, parseOid, timestamp } from '@excavate/core';
+} from '@wise-excavate/core';
+import { ExcavateError, isOid, parseOid, timestamp } from '@wise-excavate/core';
 
 /**
  * Field and record separators for the log stream.
@@ -156,7 +156,7 @@ export function walkArgs(spec: WalkSpec): readonly string[] {
      * machine produces a commit whose parent carries a later date, and that commit is then
      * emitted before its own parent.
      *
-     * Downstream assumes the opposite everywhere: `@excavate/index` assigns dense
+     * Downstream assumes the opposite everywhere: `@wise-excavate/index` assigns dense
      * `CommitId`s in walk order and writes parent edges as it goes, so an inverted pair
      * makes `commit_parents.parent_id` reference a row that does not exist yet. That is not
      * a hypothetical — `rust-analyzer` contains exactly one such inversion out of 12,832

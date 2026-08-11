@@ -7,7 +7,7 @@
  * against the same `(committed_at DESC, id DESC)` index the first page used, so page
  * 400 costs exactly what page 1 costs.
  *
- * The cursor is **opaque** because `CommitListQuery.cursor` in `@excavate/core` says so
+ * The cursor is **opaque** because `CommitListQuery.cursor` in `@wise-excavate/core` says so
  * (Part 7's API contract: "pagination is designed in from the first route rather than
  * retrofitted"). Opaque is a contract, not encryption: it means a client must not parse
  * or synthesise one, so the sort key can change in v2 without breaking any caller. It
@@ -17,7 +17,7 @@
 
 import { Buffer } from 'node:buffer';
 
-import { ExcavateError } from '@excavate/core';
+import { ExcavateError } from '@wise-excavate/core';
 
 /** Bumped whenever the encoded key changes shape. `c1` = `(committed_at, id)`. */
 const CURSOR_VERSION = 'c1';

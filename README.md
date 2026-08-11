@@ -62,19 +62,19 @@ Nine packages, a CLI, and a standalone fixture library, per
 [LEAN-V1 §5](docs/spec/LEAN-V1.md). Depth is the longest path to `core`; a package may
 only depend on packages of lower depth.
 
-| Depth | Package                                   | Responsibility                                                                              |
-| ----: | ----------------------------------------- | ------------------------------------------------------------------------------------------- |
-|     0 | [`@excavate/core`](packages/core)         | Domain types, IDs, errors, time, and the API contract. No dependencies, no `node:` imports. |
-|     0 | [`@excavate/git-fixtures`](fixtures)      | The `repo()` DSL — build real repositories deterministically. Published standalone.         |
-|     1 | [`@excavate/git`](packages/git)           | All reading of Git object data, by shelling out to `git`.                                   |
-|     1 | [`@excavate/store`](packages/store)       | SQLite schema, migrations, typed queries, FTS5. One file: `index.db`.                       |
-|     1 | [`@excavate/ai`](packages/ai)             | Providers, pipelines, prompts, the citation validator, budget.                              |
-|     1 | [`@excavate/ui`](packages/ui)             | The browser application and the Canvas2D map.                                               |
-|     2 | [`@excavate/index`](packages/index)       | The single streaming walk: renames, identity merging, noise.                                |
-|     2 | [`@excavate/analysis`](packages/analysis) | Significance, ownership, coupling, hotspots, reverts, eras.                                 |
-|     2 | [`@excavate/evidence`](packages/evidence) | Six collectors, ranking, confidence, bundle hashing.                                        |
-|     3 | [`@excavate/server`](packages/server)     | The daemon, and the composition root.                                                       |
-|     4 | [`excavate`](cli)                         | `index`, `open`, `stats`, `why`, `doctor` — and it picks the front end the daemon serves.   |
+| Depth | Package                                        | Responsibility                                                                              |
+| ----: | ---------------------------------------------- | ------------------------------------------------------------------------------------------- |
+|     0 | [`@wise-excavate/core`](packages/core)         | Domain types, IDs, errors, time, and the API contract. No dependencies, no `node:` imports. |
+|     0 | [`@wise-excavate/git-fixtures`](fixtures)      | The `repo()` DSL — build real repositories deterministically. Published standalone.         |
+|     1 | [`@wise-excavate/git`](packages/git)           | All reading of Git object data, by shelling out to `git`.                                   |
+|     1 | [`@wise-excavate/store`](packages/store)       | SQLite schema, migrations, typed queries, FTS5. One file: `index.db`.                       |
+|     1 | [`@wise-excavate/ai`](packages/ai)             | Providers, pipelines, prompts, the citation validator, budget.                              |
+|     1 | [`@wise-excavate/ui`](packages/ui)             | The browser application and the Canvas2D map.                                               |
+|     2 | [`@wise-excavate/index`](packages/index)       | The single streaming walk: renames, identity merging, noise.                                |
+|     2 | [`@wise-excavate/analysis`](packages/analysis) | Significance, ownership, coupling, hotspots, reverts, eras.                                 |
+|     2 | [`@wise-excavate/evidence`](packages/evidence) | Six collectors, ranking, confidence, bundle hashing.                                        |
+|     3 | [`@wise-excavate/server`](packages/server)     | The daemon, and the composition root.                                                       |
+|     4 | [`wise-excavate`](cli)                         | `index`, `open`, `stats`, `why`, `doctor` — and it picks the front end the daemon serves.   |
 
 Also: [`prompts/`](prompts) (versioned templates, M7), [`evals/`](evals) (30 golden
 cases, M7), [`docs/adr/`](docs/adr) (decision records), [`docs/spec/`](docs/spec) (the
@@ -87,13 +87,13 @@ packages from each other. Three are enforced mechanically by `pnpm check:deps`; 
 review gates. **B3 and B5 are the two that make Excavate what it is** — if either
 erodes, the product becomes a repo-chat tool with extra steps.
 
-| #   | Rule                                        | Enforced by                                                                                                                 |
-| --- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| B1  | Only `@excavate/git` touches the repository | `check:deps` — no other package may import `child_process`                                                                  |
-| B2  | Only `@excavate/store` writes SQL           | `check:deps` — no other package may import a SQLite driver                                                                  |
-| B3  | AI never retrieves                          | The graph (`ai` depends on `core` alone) **and** `check:deps`, which denies it filesystem, subprocess, and network builtins |
-| B4  | The UI computes nothing analytical          | Review, plus CLI/UI/MCP agreement tests                                                                                     |
-| B5  | Every feature has a no-AI path              | Review, plus an offline E2E suite that must stay green                                                                      |
+| #   | Rule                                             | Enforced by                                                                                                                 |
+| --- | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| B1  | Only `@wise-excavate/git` touches the repository | `check:deps` — no other package may import `child_process`                                                                  |
+| B2  | Only `@wise-excavate/store` writes SQL           | `check:deps` — no other package may import a SQLite driver                                                                  |
+| B3  | AI never retrieves                               | The graph (`ai` depends on `core` alone) **and** `check:deps`, which denies it filesystem, subprocess, and network builtins |
+| B4  | The UI computes nothing analytical               | Review, plus CLI/UI/MCP agreement tests                                                                                     |
+| B5  | Every feature has a no-AI path                   | Review, plus an offline E2E suite that must stay green                                                                      |
 
 `check:deps` matches builtins with or without the `node:` prefix — they are the same import,
 and a rule bypassed by deleting five characters is worse than no rule, because the table

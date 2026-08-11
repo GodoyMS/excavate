@@ -12,7 +12,7 @@
  * therefore exactly one edit: append the module below.
  */
 
-import { ExcavateError } from '@excavate/core';
+import { ExcavateError } from '@wise-excavate/core';
 
 import type { Migration } from '../index.js';
 import { migration as init } from './0001-init.js';

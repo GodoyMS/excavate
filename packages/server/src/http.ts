@@ -7,7 +7,7 @@
  */
 
 import { serve } from '@hono/node-server';
-import { BIND_HOST } from '@excavate/core';
+import { BIND_HOST } from '@wise-excavate/core';
 import type { Hono } from 'hono';
 
 export interface Listener {

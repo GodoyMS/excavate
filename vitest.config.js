@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { defineConfig } from 'vitest/config';
 
 /**
- * Resolve `@excavate/*` imports to package *source* rather than `dist/`, so
+ * Resolve `@wise-excavate/*` imports to package *source* rather than `dist/`, so
  * `vitest --watch` reacts to edits anywhere in the graph without a rebuild.
  *
  * Derived from the workspace layout rather than hand-listed, so adding a package

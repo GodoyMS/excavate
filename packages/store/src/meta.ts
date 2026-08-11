@@ -12,7 +12,7 @@
  * table absorbs that without a migration each time.
  */
 
-import { ExcavateError } from '@excavate/core';
+import { ExcavateError } from '@wise-excavate/core';
 import type BetterSqlite3 from 'better-sqlite3';
 
 /** Written by `migrate()`; the sole migration ledger (Part 9 §9.10). */

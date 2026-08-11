@@ -1,4 +1,4 @@
-# @excavate/git-fixtures
+# @wise-excavate/git-fixtures
 
 Build **real Git repositories** deterministically, for testing Git tooling.
 
@@ -62,7 +62,7 @@ will in production.
 ## Install
 
 ```sh
-pnpm add -D @excavate/git-fixtures
+pnpm add -D @wise-excavate/git-fixtures
 ```
 
 ESM only. Requires `git` on the `PATH` (2.30 or newer) and Node 22+.
@@ -73,7 +73,7 @@ A test for a hypothetical rename tracker, using [Vitest](https://vitest.dev):
 
 ```ts
 import { afterAll, expect, it } from 'vitest';
-import { type FixtureRepo, repo } from '@excavate/git-fixtures';
+import { type FixtureRepo, repo } from '@wise-excavate/git-fixtures';
 
 const built: FixtureRepo[] = [];
 afterAll(() => Promise.all(built.map((f) => f.cleanup())));

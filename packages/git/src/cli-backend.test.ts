@@ -3,7 +3,7 @@
  *
  * The synthetic tests in `git.test.ts` prove the parser handles the framing we believe
  * git produces; these prove that belief is *true*, which no amount of synthetic input
- * can. They deliberately do not use `@excavate/git-fixtures`: the fixture DSL is itself
+ * can. They deliberately do not use `@wise-excavate/git-fixtures`: the fixture DSL is itself
  * built on this package, so depending on it here would make the two able to agree with
  * each other while both being wrong.
  *
@@ -19,7 +19,7 @@ import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { isExcavateError, parseOid } from '@excavate/core';
+import { isExcavateError, parseOid } from '@wise-excavate/core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {

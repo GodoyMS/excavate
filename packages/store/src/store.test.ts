@@ -13,7 +13,7 @@ import type {
   PathId,
   Person,
   PersonId,
-} from '@excavate/core';
+} from '@wise-excavate/core';
 import {
   ExcavateError,
   NotImplementedError,
@@ -26,7 +26,7 @@ import {
   repoId,
   tagId,
   timestamp,
-} from '@excavate/core';
+} from '@wise-excavate/core';
 import BetterSqlite3 from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 

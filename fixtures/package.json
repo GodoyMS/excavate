@@ -1,5 +1,5 @@
 {
-  "name": "@excavate/git-fixtures",
+  "name": "@wise-excavate/git-fixtures",
   "version": "0.1.0",
   "type": "module",
   "description": "Build real Git repositories deterministically, for testing Git tooling.",

@@ -18,10 +18,10 @@ import { join, relative, resolve } from 'node:path';
 
 const BUILTIN_MODULES = new Set(builtinModules);
 
-const CORE = '@excavate/core';
-const GIT = '@excavate/git';
-const STORE = '@excavate/store';
-const FIXTURES = '@excavate/git-fixtures';
+const CORE = '@wise-excavate/core';
+const GIT = '@wise-excavate/git';
+const STORE = '@wise-excavate/store';
+const FIXTURES = '@wise-excavate/git-fixtures';
 
 /** @type {Record<string, { dir: string, deps: string[], note?: string }>} */
 const ARCHITECTURE = {
@@ -32,43 +32,43 @@ const ARCHITECTURE = {
   },
   [GIT]: { dir: 'packages/git', deps: [CORE] },
   [STORE]: { dir: 'packages/store', deps: [CORE] },
-  '@excavate/ai': {
+  '@wise-excavate/ai': {
     dir: 'packages/ai',
     deps: [CORE],
     note: 'Rule B3 is structural: with no store and no evidence edge, it cannot retrieve.',
   },
-  '@excavate/ui': {
+  '@wise-excavate/ui': {
     dir: 'packages/ui',
     deps: [CORE],
     note: 'Browser target. Depends on the API contract, never on the server.',
   },
-  '@excavate/index': { dir: 'packages/index', deps: [CORE, GIT, STORE] },
-  '@excavate/analysis': {
+  '@wise-excavate/index': { dir: 'packages/index', deps: [CORE, GIT, STORE] },
+  '@wise-excavate/analysis': {
     dir: 'packages/analysis',
     deps: [CORE, STORE],
     note: 'Reads from the store; never touches git.',
   },
-  '@excavate/evidence': {
+  '@wise-excavate/evidence': {
     dir: 'packages/evidence',
     deps: [CORE, GIT, STORE],
     note: 'Reads analysis output via store rollups, so it needs no analysis edge.',
   },
-  '@excavate/server': {
+  '@wise-excavate/server': {
     dir: 'packages/server',
     deps: [
       CORE,
       GIT,
       STORE,
-      '@excavate/index',
-      '@excavate/analysis',
-      '@excavate/evidence',
-      '@excavate/ai',
+      '@wise-excavate/index',
+      '@wise-excavate/analysis',
+      '@wise-excavate/evidence',
+      '@wise-excavate/ai',
     ],
     note: 'The composition root — the only package that knows about all the others.',
   },
-  excavate: {
+  'wise-excavate': {
     dir: 'cli',
-    deps: [CORE, '@excavate/server', '@excavate/ui'],
+    deps: [CORE, '@wise-excavate/server', '@wise-excavate/ui'],
     note: 'A presentation surface above the daemon, so it is what chooses the front end to serve.',
   },
   [FIXTURES]: {
@@ -82,7 +82,7 @@ const ARCHITECTURE = {
  * Test-only packages: may be declared by any package, are required by none, and must
  * never appear as a *runtime* dependency.
  *
- * `@excavate/git-fixtures` builds real repositories, so every package that parses or
+ * `@wise-excavate/git-fixtures` builds real repositories, so every package that parses or
  * queries Git history wants it in tests. Part 14 §14.2 anticipated this ("testkit is a
  * normal dependency … excluded from release builds by a feature flag"); in npm terms
  * the mechanism is `devDependencies`, and this rule is what keeps it there. It cannot
@@ -136,27 +136,27 @@ const everyPackageExcept = (name) =>
 const IMPORT_RULES = [
   {
     id: 'B1',
-    rule: 'Only @excavate/git touches the repository.',
+    rule: 'Only @wise-excavate/git touches the repository.',
     // git-fixtures is exempt by design: it only ever creates fixtures in a temp dir.
     allowed: new Set([GIT, FIXTURES]),
     matches: (spec) => builtinOf(spec) === 'child_process',
   },
   {
     id: 'B2',
-    rule: 'Only @excavate/store writes SQL.',
+    rule: 'Only @wise-excavate/store writes SQL.',
     allowed: new Set([STORE]),
     matches: (spec) => /sqlite/i.test(spec) || builtinOf(spec) === 'sqlite',
   },
   {
     id: 'B3',
     rule:
-      '@excavate/ai never retrieves, so it gets no filesystem, subprocess, or network ' +
+      '@wise-excavate/ai never retrieves, so it gets no filesystem, subprocess, or network ' +
       'capability. Its input is an EvidenceBundle the caller hands it.',
     /* ADR-0001 claims `ai` "cannot retrieve" as a property of the graph rather than a rule
        under review. Dropping its edges to `store` and `evidence` is most of that, but a
        package that can `readFileSync` its way into `.git` retrieves just as effectively —
        so the capability, not only the edge, has to be denied for the claim to be true. */
-    allowed: everyPackageExcept('@excavate/ai'),
+    allowed: everyPackageExcept('@wise-excavate/ai'),
     matches: (spec) => {
       const builtin = builtinOf(spec);
       return builtin !== null && IO_BUILTINS.has(builtin);
@@ -164,8 +164,8 @@ const IMPORT_RULES = [
   },
   {
     id: 'browser',
-    rule: '@excavate/ui targets a browser and must import no Node builtin.',
-    allowed: everyPackageExcept('@excavate/ui'),
+    rule: '@wise-excavate/ui targets a browser and must import no Node builtin.',
+    allowed: everyPackageExcept('@wise-excavate/ui'),
     matches: (spec) => builtinOf(spec) !== null,
   },
 ];
@@ -273,7 +273,7 @@ for (const name of names) {
   for (const file of sourceFiles(dir)) {
     const isTest = file.endsWith('.test.ts');
     for (const spec of importsOf(file)) {
-      if (!spec.startsWith('@excavate/') && spec !== 'excavate') continue;
+      if (!spec.startsWith('@wise-excavate/') && spec !== 'excavate') continue;
       const target = names.find((n) => spec === n || spec.startsWith(`${n}/`));
       if (!target) {
         fail(
@@ -314,7 +314,7 @@ for (const name of names) {
  * end-to-end — so the graph rules do not apply to it. **B2 still does.** A test that reached
  * for `better-sqlite3` directly would be writing SQL outside the store, and it would do so
  * while sitting in the one directory that had no lint at all, which is exactly where such a
- * shortcut would survive. It must go through `@excavate/store` like everything else.
+ * shortcut would survive. It must go through `@wise-excavate/store` like everything else.
  */
 for (const file of walkTypeScript('tests')) {
   for (const spec of importsOf(file)) {
@@ -393,7 +393,9 @@ console.log('\n✓ Package graph is acyclic and matches the architecture.\n');
 for (const name of ordered) {
   const deps = ARCHITECTURE[name].deps;
   const shown =
-    deps.length === 0 ? '—' : deps.map((d) => d.replace('@excavate/', '')).join(', ');
+    deps.length === 0
+      ? '—'
+      : deps.map((d) => d.replace('@wise-excavate/', '')).join(', ');
   console.log(`  depth ${depths.get(name)}  ${name.padEnd(24)} ← ${shown}`);
 }
 console.log(

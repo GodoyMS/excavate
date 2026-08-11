@@ -12,7 +12,7 @@
 
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
-import { AUTH_SCHEME, BIND_HOST } from '@excavate/core';
+import { AUTH_SCHEME, BIND_HOST } from '@wise-excavate/core';
 
 /** 32 bytes = 256 bits, per Part 7 §7.4.2. */
 export const SESSION_TOKEN_BYTES = 32;

@@ -1,5 +1,5 @@
-import type { RepoSummary, ServerEvent, Tier } from '@excavate/core';
-import { parseOid, repoId, timestamp } from '@excavate/core';
+import type { RepoSummary, ServerEvent, Tier } from '@wise-excavate/core';
+import { parseOid, repoId, timestamp } from '@wise-excavate/core';
 import { describe, expect, it } from 'vitest';
 
 import type { IndexProgressEvent } from './progress.js';
@@ -28,7 +28,7 @@ const summary = (overrides: Partial<RepoSummary> = {}): RepoSummary => ({
 });
 
 /**
- * Built to mirror what `@excavate/index`'s walk actually yields, which the server turns
+ * Built to mirror what `@wise-excavate/index`'s walk actually yields, which the server turns
  * into events by omitting a null note rather than passing `undefined` through.
  */
 const progress = (

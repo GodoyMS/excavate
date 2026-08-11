@@ -1,5 +1,5 @@
 /**
- * `@excavate/index` — depth 2.
+ * `@wise-excavate/index` — depth 2.
  *
  * **Responsibility.** Turn raw Git data into stored facts, once, efficiently. The
  * streaming walk, path interning, rename resolution, identity merging, noise
@@ -44,16 +44,22 @@ import type {
   PersonId,
   Tier,
   Timestamp,
-} from '@excavate/core';
+} from '@wise-excavate/core';
 import {
   commitId,
   compareTimestamps,
   ExcavateError,
   NotImplementedError,
-} from '@excavate/core';
-import type { GitBackend, Mailmap, RawChange, RawCommit, WalkSpec } from '@excavate/git';
-import type { Store, Transaction } from '@excavate/store';
-import { WRITE_BATCH_ROWS } from '@excavate/store';
+} from '@wise-excavate/core';
+import type {
+  GitBackend,
+  Mailmap,
+  RawChange,
+  RawCommit,
+  WalkSpec,
+} from '@wise-excavate/git';
+import type { Store, Transaction } from '@wise-excavate/store';
+import { WRITE_BATCH_ROWS } from '@wise-excavate/store';
 
 import {
   createM0FileTable,
@@ -123,7 +129,7 @@ export interface IndexPipelineDeps {
 }
 
 /**
- * `meta` keys the walk owns, so that `@excavate/server` can read back what only the
+ * `meta` keys the walk owns, so that `@wise-excavate/server` can read back what only the
  * walk observed. Exported rather than stringly duplicated: a key spelled two ways in
  * two packages is a bug neither the typechecker nor a unit test would catch.
  *
@@ -490,7 +496,7 @@ async function* runWalk(
       note: `cancelled after ${walked} ${walked === 1 ? 'commit' : 'commits'} — index marked partial`,
     };
     // **And then it throws, which an earlier draft of this did not.** Returning
-    // cleanly is indistinguishable from finishing, and `@excavate/server`'s `runIndex`
+    // cleanly is indistinguishable from finishing, and `@wise-excavate/server`'s `runIndex`
     // reads exactly that way: after the progress stream ends it publishes
     // `index.tier_complete` for every requested tier, sets the session state to
     // `ready` and resolves the job. A cancelled walk would therefore be announced as a

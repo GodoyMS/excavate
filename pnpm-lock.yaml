@@ -11,25 +11,25 @@ importers:
       '@eslint/js':
         specifier: ^9.39.1
         version: 9.39.5
-      '@excavate/core':
+      '@wise-excavate/core':
         specifier: workspace:*
         version: link:packages/core
-      '@excavate/git':
+      '@wise-excavate/git':
         specifier: workspace:*
         version: link:packages/git
-      '@excavate/git-fixtures':
+      '@wise-excavate/git-fixtures':
         specifier: workspace:*
         version: link:fixtures
-      '@excavate/index':
+      '@wise-excavate/index':
         specifier: workspace:*
         version: link:packages/index
-      '@excavate/server':
+      '@wise-excavate/server':
         specifier: workspace:*
         version: link:packages/server
-      '@excavate/store':
+      '@wise-excavate/store':
         specifier: workspace:*
         version: link:packages/store
-      '@excavate/ui':
+      '@wise-excavate/ui':
         specifier: workspace:*
         version: link:packages/ui
       '@types/node':
@@ -53,13 +53,13 @@ importers:
 
   cli:
     dependencies:
-      '@excavate/core':
+      '@wise-excavate/core':
         specifier: workspace:*
         version: link:../packages/core
-      '@excavate/server':
+      '@wise-excavate/server':
         specifier: workspace:*
         version: link:../packages/server
-      '@excavate/ui':
+      '@wise-excavate/ui':
         specifier: workspace:*
         version: link:../packages/ui
       commander:
@@ -70,16 +70,16 @@ importers:
 
   packages/ai:
     dependencies:
-      '@excavate/core':
+      '@wise-excavate/core':
         specifier: workspace:*
         version: link:../core
 
   packages/analysis:
     dependencies:
-      '@excavate/core':
+      '@wise-excavate/core':
         specifier: workspace:*
         version: link:../core
-      '@excavate/store':
+      '@wise-excavate/store':
         specifier: workspace:*
         version: link:../store
 
@@ -87,55 +87,55 @@ importers:
 
   packages/evidence:
     dependencies:
-      '@excavate/core':
+      '@wise-excavate/core':
         specifier: workspace:*
         version: link:../core
-      '@excavate/git':
+      '@wise-excavate/git':
         specifier: workspace:*
         version: link:../git
-      '@excavate/store':
+      '@wise-excavate/store':
         specifier: workspace:*
         version: link:../store
 
   packages/git:
     dependencies:
-      '@excavate/core':
+      '@wise-excavate/core':
         specifier: workspace:*
         version: link:../core
 
   packages/index:
     dependencies:
-      '@excavate/core':
+      '@wise-excavate/core':
         specifier: workspace:*
         version: link:../core
-      '@excavate/git':
+      '@wise-excavate/git':
         specifier: workspace:*
         version: link:../git
-      '@excavate/store':
+      '@wise-excavate/store':
         specifier: workspace:*
         version: link:../store
 
   packages/server:
     dependencies:
-      '@excavate/ai':
+      '@wise-excavate/ai':
         specifier: workspace:*
         version: link:../ai
-      '@excavate/analysis':
+      '@wise-excavate/analysis':
         specifier: workspace:*
         version: link:../analysis
-      '@excavate/core':
+      '@wise-excavate/core':
         specifier: workspace:*
         version: link:../core
-      '@excavate/evidence':
+      '@wise-excavate/evidence':
         specifier: workspace:*
         version: link:../evidence
-      '@excavate/git':
+      '@wise-excavate/git':
         specifier: workspace:*
         version: link:../git
-      '@excavate/index':
+      '@wise-excavate/index':
         specifier: workspace:*
         version: link:../index
-      '@excavate/store':
+      '@wise-excavate/store':
         specifier: workspace:*
         version: link:../store
       '@hono/node-server':
@@ -147,7 +147,7 @@ importers:
 
   packages/store:
     dependencies:
-      '@excavate/core':
+      '@wise-excavate/core':
         specifier: workspace:*
         version: link:../core
       better-sqlite3:
@@ -160,7 +160,7 @@ importers:
 
   packages/ui:
     dependencies:
-      '@excavate/core':
+      '@wise-excavate/core':
         specifier: workspace:*
         version: link:../core
 

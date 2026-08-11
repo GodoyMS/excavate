@@ -80,7 +80,7 @@ jobs:
       # already points GIT_CONFIG_GLOBAL and GIT_CONFIG_SYSTEM at the *null device* and
       # passes identity through GIT_AUTHOR_*/GIT_COMMITTER_*, so a fixture ignores this
       # global config entirely. It exists for the code that shells out to `git`
-      # *outside* that isolation — `@excavate/git` deliberately inherits the user's
+      # *outside* that isolation — `@wise-excavate/git` deliberately inherits the user's
       # config (see `gitEnv()` in packages/git/src/exec.ts), ad-hoc test setup, and the
       # perf harness — and to turn "Author identity unknown" into a non-event.
       # init.defaultBranch pins branch naming so tests may assert on `main`.

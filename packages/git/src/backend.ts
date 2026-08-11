@@ -6,8 +6,8 @@
  * years of hardening behind it and which every user already has installed.
  */
 
-import type { Identity, LineRange, Oid, RefKind, Timestamp } from '@excavate/core';
-import { ExcavateError, NotImplementedError, isOid, parseOid } from '@excavate/core';
+import type { Identity, LineRange, Oid, RefKind, Timestamp } from '@wise-excavate/core';
+import { ExcavateError, NotImplementedError, isOid, parseOid } from '@wise-excavate/core';
 
 import type { GitCommand } from './exec.js';
 import { DEFAULT_GIT_BINARY, runGit, spawnGit, stderrOf } from './exec.js';
