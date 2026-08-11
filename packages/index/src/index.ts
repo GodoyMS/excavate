@@ -57,7 +57,7 @@ import type { Store, Transaction } from '@wise-excavate/store';
 import { WRITE_BATCH_ROWS } from '@wise-excavate/store';
 
 import { createIdentityResolver } from './identity.js';
-import { splitCommitMessage } from './message.js';
+import { coAuthors, splitCommitMessage } from './message.js';
 import { classifyCommit, classifyPath } from './noise.js';
 import { createRenameResolver } from './renames.js';
 
@@ -298,6 +298,15 @@ async function* runWalk(
 
     for (const { raw, id } of pending) {
       const parsed = splitCommitMessage(raw.message);
+      /* Resolved through the same ladder as the author, so a co-author who also commits under
+           two addresses merges into one person exactly as they should. The returned ids are not
+           stored on the commit at M1 — there is no `commit_coauthors` table until the ownership
+           model distributes credit per file — but resolving them here is what makes them exist
+           at all: a contributor who is only ever a co-author is otherwise invisible.
+           See `IdentityResolver.resolve` for why that mattered. */
+      for (const coAuthor of coAuthors(parsed.trailers)) {
+        people.resolve(coAuthor, raw.authoredAt, 'co-author');
+      }
       const parents: CommitId[] = [];
       for (const parent of raw.parents) {
         const parentId = commitIds.get(parent);

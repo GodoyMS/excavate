@@ -209,7 +209,22 @@ export interface IdentityResolver {
    * the committer as well would double every rebased or squash-merged commit, and on a
    * bors-style repository would make the merge bot the most prolific author alive.
    */
-  resolve(identity: Identity, seenAt: Timestamp, role: 'author' | 'committer'): PersonId;
+  /**
+   * `co-author` is a first-class role, not a decoration.
+   *
+   * Part 8 §8.2 requires trailers to be *parsed, not just stored* — "`Co-authored-by` feeds the
+   * ownership model" — and §8.5.2 that co-authorship distributes credit. Until this role existed
+   * a co-author was parsed into `trailers`, counted toward message quality, and then discarded:
+   * they were not a person, so they held no knowledge, owned nothing, and did not appear in the
+   * cast of characters. On a team that pairs, or that uses GitHub's co-author UI, that silently
+   * erases contributors — and it erases them from bus-factor arithmetic, which is the one number
+   * whose whole purpose is to notice who would be missed.
+   */
+  resolve(
+    identity: Identity,
+    seenAt: Timestamp,
+    role: 'author' | 'committer' | 'co-author',
+  ): PersonId;
   /** Rows touched since the last drain, so the pipeline can write people in the same transaction as the commits referencing them. */
   drain(): readonly Person[];
   /** Every person, for the final consistency pass. */
@@ -257,7 +272,12 @@ export function createIdentityResolver(mailmap: Mailmap | null): IdentityResolve
     }
     if (compareTimestamps(seenAt, row.firstSeen) < 0) row.firstSeen = seenAt;
     if (compareTimestamps(seenAt, row.lastSeen) > 0) row.lastSeen = seenAt;
-    if (role === 'author') row.commitCount += 1;
+    /* Co-authorship counts. "Commits you co-authored" are commits you worked on — GitHub's own
+       contribution graph counts them, and a cast of characters built only from `author` shows a
+       pair-programming team as one person who did everything. The *committer* role deliberately
+       does not count: on a rebased or bot-merged history the committer is whoever pressed the
+       button, which is how `bors` came to out-commit every human in rust-analyzer. */
+    if (role === 'author' || role === 'co-author') row.commitCount += 1;
     // A row is a bot if *any* of its identities is one; the flag is sticky.
     if (isBotIdentity(identity)) row.isBot = true;
     dirty.add(row);
@@ -323,11 +343,29 @@ export function createIdentityResolver(mailmap: Mailmap | null): IdentityResolve
           keys: new Set(),
         };
         rows.push(row);
-      } else if (rankOf(source) > rankOf(row.mergeSource)) {
-        /* Keep the *weakest* explanation on the row. If a person was merged by a
-           heuristic at any point, the UI must say so rather than claiming the exact-email
-           match that happened to come later — the whole purpose of `mergeSource` is to let
-           a user audit the merge, and reporting the most flattering rule defeats it. */
+      } else if (source === 'mailmap') {
+        /**
+         * The mailmap is sticky, and it is the one exception to weakest-wins below.
+         *
+         * It is not a rule on the same axis as the others — it is the repository stating a
+         * fact, and it is the *answer* to "why are these addresses one person". Weakest-wins
+         * alone got this exactly backwards: on the `mailmap-identities` fixture Ada's row is
+         * created by her canonical address (needing no rewrite, so `exact-email`), and the two
+         * aliased addresses that follow are merged by the mailmap — rank 0, which loses. The
+         * row then reported `exact-email` for a person whose three addresses do not match by
+         * email at all, so a user auditing the merge would check the addresses, find them
+         * different, and reasonably conclude the tool was broken. Saying `mailmap` ends the
+         * question, correctly and with the repository's own authority behind it.
+         */
+        row.mergeSource = 'mailmap';
+      } else if (
+        row.mergeSource !== 'mailmap' &&
+        rankOf(source) > rankOf(row.mergeSource)
+      ) {
+        /* Otherwise keep the *weakest* explanation on the row. If a person was merged by a
+             heuristic at any point, the UI must say so rather than claiming the exact-email
+             match that happened to come later — the whole purpose of `mergeSource` is to let
+             a user audit the merge, and reporting the most flattering rule defeats it. */
         row.mergeSource = source;
       }
 
