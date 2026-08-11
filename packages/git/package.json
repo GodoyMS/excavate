@@ -1,9 +1,8 @@
 {
   "name": "@wise-excavate/git",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "type": "module",
-  "description": "All reading of Git object data, by shelling out to `git`. The only package permitted to touch a repository (boundary rule B1).",
+  "description": "Streaming Git history reader: walks, renames, mailmap, and refs.",
   "license": "Apache-2.0",
   "exports": {
     ".": {
@@ -16,5 +15,28 @@
   ],
   "dependencies": {
     "@wise-excavate/core": "workspace:*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GodoyMS/excavate.git",
+    "directory": "packages/git"
+  },
+  "bugs": {
+    "url": "https://github.com/GodoyMS/excavate/issues"
+  },
+  "homepage": "https://github.com/GodoyMS/excavate#readme",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "keywords": [
+    "git",
+    "git-history",
+    "code-archaeology",
+    "hotspots",
+    "code-ownership",
+    "bus-factor"
+  ],
+  "publishConfig": {
+    "access": "public"
   }
 }

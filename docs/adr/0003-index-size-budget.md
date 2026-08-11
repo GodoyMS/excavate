@@ -102,8 +102,16 @@ rather than done speculatively:
 
 ## Enforcement
 
-`tests/perf-budget.test.ts` asserts bytes-per-commit and throughput against a generated fixture on
-every CI run. The corpus measurements in the table above are _not_ asserted in CI — they need a
+`tests/perf-budget.test.ts` asserts bytes-per-commit against a generated fixture on every CI run.
+Bytes-per-commit is the right budget to put there because it is deterministic: the same fixture
+produces the same index size on any machine, however loaded.
+
+**Throughput is deliberately not asserted as a budget in CI.** The first version of that test tried,
+with a floor of 5,000 commits/min against a measured 65,000 — and failed on its first full run at
+4,126, because it executes alongside three sibling forks each building fixtures with real `git`.
+A wall-clock measurement taken under that contention reports how busy the machine is, not how fast
+the walk is. What remains in CI is a tripwire two orders of magnitude below the budget, which only
+an algorithmic regression can trip. The corpus measurements in the table above are _not_ asserted in CI — they need a
 network clone of two large repositories — so they are recorded here with the commit that produced
 them, and re-measured by hand at each milestone boundary. That division is deliberate and is worth
 naming: CI catches a regression in the cost _model_, and the milestone check catches a regression

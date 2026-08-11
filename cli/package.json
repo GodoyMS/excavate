@@ -1,9 +1,8 @@
 {
   "name": "wise-excavate",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "type": "module",
-  "description": "Git tells you what changed. Excavate tells you why.",
+  "description": "Git history archaeology in your terminal. Hotspots, knowledge islands, and why a line exists.",
   "license": "Apache-2.0",
   "bin": {
     "excavate": "./dist/bin.js"
@@ -15,7 +14,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md"
   ],
   "dependencies": {
     "@wise-excavate/core": "workspace:*",
@@ -25,5 +25,25 @@
   },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GodoyMS/excavate.git",
+    "directory": "cli"
+  },
+  "bugs": {
+    "url": "https://github.com/GodoyMS/excavate/issues"
+  },
+  "homepage": "https://github.com/GodoyMS/excavate#readme",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "keywords": [
+    "git",
+    "git-history",
+    "code-archaeology",
+    "hotspots",
+    "code-ownership",
+    "bus-factor"
+  ]
 }

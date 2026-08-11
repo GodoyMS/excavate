@@ -1,9 +1,8 @@
 {
   "name": "@wise-excavate/core",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "type": "module",
-  "description": "Domain types, IDs, errors, and time. Depth 0 — depended on by everything, so it depends on nothing.",
+  "description": "Shared vocabulary, entity types, and the typed API surface for Excavate.",
   "license": "Apache-2.0",
   "exports": {
     ".": {
@@ -13,5 +12,28 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GodoyMS/excavate.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/GodoyMS/excavate/issues"
+  },
+  "homepage": "https://github.com/GodoyMS/excavate#readme",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "keywords": [
+    "git",
+    "git-history",
+    "code-archaeology",
+    "hotspots",
+    "code-ownership",
+    "bus-factor"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
 }

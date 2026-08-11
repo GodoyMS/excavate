@@ -1,9 +1,8 @@
 {
   "name": "@wise-excavate/ui",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "type": "module",
-  "description": "The React application: views, Canvas2D renderer, design tokens. Renders API responses and computes nothing analytical (boundary rule B4).",
+  "description": "Browser front end for Excavate.",
   "license": "Apache-2.0",
   "exports": {
     ".": {
@@ -16,5 +15,28 @@
   ],
   "dependencies": {
     "@wise-excavate/core": "workspace:*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GodoyMS/excavate.git",
+    "directory": "packages/ui"
+  },
+  "bugs": {
+    "url": "https://github.com/GodoyMS/excavate/issues"
+  },
+  "homepage": "https://github.com/GodoyMS/excavate#readme",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "keywords": [
+    "git",
+    "git-history",
+    "code-archaeology",
+    "hotspots",
+    "code-ownership",
+    "bus-factor"
+  ],
+  "publishConfig": {
+    "access": "public"
   }
 }

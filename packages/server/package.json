@@ -1,9 +1,8 @@
 {
   "name": "@wise-excavate/server",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "type": "module",
-  "description": "The daemon: HTTP + SSE on 127.0.0.1, token auth, job queue, repo session lifecycle. The composition root.",
+  "description": "The Excavate daemon: sessions, SSE progress, and the report API.",
   "license": "Apache-2.0",
   "exports": {
     ".": {
@@ -24,5 +23,28 @@
     "@wise-excavate/store": "workspace:*",
     "@hono/node-server": "^2.1.0",
     "hono": "^4.13.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GodoyMS/excavate.git",
+    "directory": "packages/server"
+  },
+  "bugs": {
+    "url": "https://github.com/GodoyMS/excavate/issues"
+  },
+  "homepage": "https://github.com/GodoyMS/excavate#readme",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "keywords": [
+    "git",
+    "git-history",
+    "code-archaeology",
+    "hotspots",
+    "code-ownership",
+    "bus-factor"
+  ],
+  "publishConfig": {
+    "access": "public"
   }
 }

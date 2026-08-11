@@ -1,9 +1,8 @@
 {
   "name": "@wise-excavate/evidence",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "type": "module",
-  "description": "The heart of the product: six collectors, ranking, budget fitting, deterministic confidence, bundle hashing.",
+  "description": "Cited evidence chains for why a line of code exists.",
   "license": "Apache-2.0",
   "exports": {
     ".": {
@@ -18,5 +17,28 @@
     "@wise-excavate/core": "workspace:*",
     "@wise-excavate/git": "workspace:*",
     "@wise-excavate/store": "workspace:*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GodoyMS/excavate.git",
+    "directory": "packages/evidence"
+  },
+  "bugs": {
+    "url": "https://github.com/GodoyMS/excavate/issues"
+  },
+  "homepage": "https://github.com/GodoyMS/excavate#readme",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "keywords": [
+    "git",
+    "git-history",
+    "code-archaeology",
+    "hotspots",
+    "code-ownership",
+    "bus-factor"
+  ],
+  "publishConfig": {
+    "access": "public"
   }
 }

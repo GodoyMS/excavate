@@ -1,9 +1,8 @@
 {
   "name": "@wise-excavate/store",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "type": "module",
-  "description": "SQLite schema, migrations, typed queries, bulk writers, and FTS5. The only package permitted to write SQL (boundary rule B2).",
+  "description": "SQLite index for Git history \u2014 schema, migrations, and queries.",
   "license": "Apache-2.0",
   "exports": {
     ".": {
@@ -20,5 +19,28 @@
   },
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GodoyMS/excavate.git",
+    "directory": "packages/store"
+  },
+  "bugs": {
+    "url": "https://github.com/GodoyMS/excavate/issues"
+  },
+  "homepage": "https://github.com/GodoyMS/excavate#readme",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "keywords": [
+    "git",
+    "git-history",
+    "code-archaeology",
+    "hotspots",
+    "code-ownership",
+    "bus-factor"
+  ],
+  "publishConfig": {
+    "access": "public"
   }
 }
