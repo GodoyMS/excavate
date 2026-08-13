@@ -25,7 +25,12 @@ import type {
 } from '@wise-excavate/core';
 import type BetterSqlite3 from 'better-sqlite3';
 
-import { decodeChangeKind, decodeCommitFlags, NON_SOURCE_FILE_MASK } from './codec.js';
+import {
+  NON_SOURCE_FILE_MASK,
+  decodeChangeKind,
+  decodeCommitFlags,
+  encodeHunkKind,
+} from './codec.js';
 
 /** One commit, with the aggregates significance needs, in walk order. */
 export interface CommitFact {
@@ -97,6 +102,20 @@ export interface AnalysisQueries {
    * repository's top file, and it has 400,000 lines of churn to get there with.
    */
   nonSourceFiles(): readonly FileId[];
+  /**
+   * Commits whose every stored hunk is whitespace-only — the `format-only` set.
+   *
+   * The measurement M1 could not make. Without the diff body, `format-only` was undecidable and
+   * a codemod had to be caught by scale plus uniformity or by a subject naming its tool; both are
+   * heuristics standing in for this. `HunkKind.WhitespaceOnly` is the real thing.
+   *
+   * "Every hunk" is all-or-nothing on purpose, matching how the other `-only` flags work: a
+   * commit that reformats a file *and* changes logic elsewhere is a real change and must not be
+   * penalised. Commits with no stored hunks are excluded rather than counted as vacuously
+   * whitespace-only — a merge, a pure rename, and a lockfile-only commit all have none, and
+   * flagging them `format-only` would be asserting something never observed.
+   */
+  formatOnlyCommits(): readonly CommitId[];
   /** The version an analyzer last ran at, or `null` if it never has. */
   lastRun(
     analyzer: AnalyzerId,
@@ -178,6 +197,27 @@ export function createAnalysisQueries(db: BetterSqlite3.Database): AnalysisQueri
         )
         .all() as { target_id: number }[];
       return new Set(rows.map((row) => row.target_id as CommitId));
+    },
+
+    formatOnlyCommits(): readonly CommitId[] {
+      /* One aggregate rather than a query per commit: the alternative is 12,864 statements on
+         `rust-analyzer` to answer a question SQLite can fold in a single pass.
+
+         `HAVING total > 0` is what excludes commits with no hunks at all. Without it, every
+         merge and every lockfile-only commit satisfies "all hunks are whitespace-only" by having
+         none, and the penalty would land on commits whose diffs were never even read. */
+      const whitespaceOnly = encodeHunkKind('whitespace-only');
+      const rows = db
+        .prepare(
+          `SELECT commit_id,
+                  COUNT(*) AS total,
+                  SUM(CASE WHEN kind = ? THEN 1 ELSE 0 END) AS whitespace
+             FROM hunks
+            GROUP BY commit_id
+           HAVING total > 0 AND total = whitespace`,
+        )
+        .all(whitespaceOnly) as { commit_id: number }[];
+      return rows.map((row) => row.commit_id as CommitId);
     },
 
     nonSourceFiles(): readonly FileId[] {

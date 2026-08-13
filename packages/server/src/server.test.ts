@@ -206,6 +206,7 @@ function fakeStore(rows: readonly Commit[]): StoreDouble {
       changes: unsupported,
       paths: unsupported,
       releaseCommits: unsupported,
+      formatOnlyCommits: unsupported,
       nonSourceFiles: unsupported,
       lastRun: unsupported,
     },

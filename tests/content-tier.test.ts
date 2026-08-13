@@ -22,7 +22,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { parseOid, repoId } from '@wise-excavate/core';
+import { fromDate, parseOid, repoId } from '@wise-excavate/core';
 import type { CommitId, FileId } from '@wise-excavate/core';
 import { DEFAULT_WALK_SPEC, CliGitBackend } from '@wise-excavate/git';
 import type { FixtureRepo } from '@wise-excavate/git-fixtures';
@@ -30,6 +30,7 @@ import { repo } from '@wise-excavate/git-fixtures';
 import { INDEX_FILE_NAME, openStore } from '@wise-excavate/store';
 import type { Store } from '@wise-excavate/store';
 import { createIndexPipeline } from '@wise-excavate/index';
+import { runAnalysis } from '@wise-excavate/analysis';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 let fixture: FixtureRepo;
@@ -117,6 +118,13 @@ beforeAll(async () => {
   })) {
     void progress;
   }
+
+  await runAnalysis({
+    store,
+    now: fromDate(new Date('2026-01-01T00:00:00Z')),
+    signal: new AbortController().signal,
+    throughOid: parseOid(fixture.oid('style: indent line 9 and nothing else')),
+  });
 
   const head = store.commits.byOid(
     parseOid(fixture.oid('style: indent line 9 and nothing else')),
@@ -214,4 +222,99 @@ describe('commitsTouching, the pre-filter blame is built on', () => {
     expect(one.length).toBeLessThan(all.length);
     expect(one.length).toBeGreaterThan(0);
   });
+});
+
+describe('format-only, the flag M1 could not set', () => {
+  /**
+   * The M1 P2, retired.
+   *
+   * Without the diff body `format-only` was undecidable, so a codemod had to be caught by scale
+   * plus uniformity or by a subject naming its tool — heuristics standing in for a measurement.
+   * `HunkKind.WhitespaceOnly` is the measurement.
+   */
+  it('flags a commit whose every hunk is whitespace-only', () => {
+    const commit = store.commits.byId(commitFor('style: indent line 9 and nothing else'));
+    expect(commit?.flags).toContain('format-only');
+  });
+
+  it('does not flag a commit that changed real code', () => {
+    for (const subject of [
+      'base: twenty lines',
+      'edit: line 3 only',
+      'edit: line 17 only',
+    ]) {
+      const commit = store.commits.byId(commitFor(subject));
+      expect(commit?.flags, subject).not.toContain('format-only');
+    }
+  });
+
+  it('preserves the flags the walk already assigned', () => {
+    // `flags = flags | ?` rather than a replacement. The root commit keeps `root`, and losing it
+    // would break every query that asks where history begins.
+    const root = store.commits.byId(commitFor('base: twenty lines'));
+    expect(root?.flags).toContain('root');
+  });
+
+  /**
+   * The all-or-nothing rule, which is the one that stops this being harmful.
+   *
+   * A commit that reformats one file *and* changes logic in another is a real change. Flagging it
+   * `format-only` would apply a penalty large enough to sink it out of the significance ranking
+   * entirely — so the failure mode of getting this wrong is hiding real work, not showing noise.
+   */
+  it('does not flag a commit that mixes formatting with a real change', async () => {
+    const local = await repo('format-mixed')
+      .commit('base', (c) =>
+        c.add('a.ts', 'function f() {\nreturn 1;\n}\n').add('b.ts', 'const b = 1;\n'),
+      )
+      .commit('mixed: reindent a.ts and change b.ts', (c) =>
+        c
+          .edit('a.ts', 'function f() {\n    return 1;\n}\n')
+          .edit('b.ts', 'const b = 2;\n'),
+      )
+      .build();
+    const dir = mkdtempSync(join(tmpdir(), 'excavate-mixed-'));
+    const mixedStore = openStore({
+      path: join(dir, INDEX_FILE_NAME),
+      repoId: repoId('format-mixed'),
+    });
+    try {
+      const pipeline = createIndexPipeline({
+        backend: new CliGitBackend({ repoRoot: local.path }),
+        store: mixedStore,
+        sinks: [],
+        walkSpec: DEFAULT_WALK_SPEC,
+      });
+      for await (const progress of pipeline.run({
+        tiers: ['metadata', 'content'],
+        signal: new AbortController().signal,
+      })) {
+        void progress;
+      }
+      await runAnalysis({
+        store: mixedStore,
+        now: fromDate(new Date('2026-01-01T00:00:00Z')),
+        signal: new AbortController().signal,
+        throughOid: local.oid('mixed: reindent a.ts and change b.ts'),
+      });
+
+      const mixed = mixedStore.commits.byOid(
+        parseOid(local.oid('mixed: reindent a.ts and change b.ts')),
+      );
+      expect(mixed?.flags).not.toContain('format-only');
+      // And the whitespace-only hunk is still *recorded* — the file-level fact survives even
+      // though the commit-level flag correctly does not fire.
+      const hunks = mixedStore.commits
+        .changesIn(mixed?.id ?? (0 as CommitId))
+        .flatMap((change) =>
+          mixedStore.commits.hunksIn(mixed?.id ?? (0 as CommitId), change.file),
+        );
+      expect(hunks.some((h) => h.kind === 'whitespace-only')).toBe(true);
+      expect(hunks.some((h) => h.kind === 'content')).toBe(true);
+    } finally {
+      mixedStore.close();
+      await local.cleanup();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 120_000);
 });

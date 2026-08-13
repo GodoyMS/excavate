@@ -78,6 +78,20 @@ export async function runAnalysis(deps: AnalysisRunDeps): Promise<AnalysisSummar
   const commits = new Map<CommitId, CommitAcc>();
   const subjectCounts = new Map<string, number>();
 
+  /**
+   * `format-only`, derived from hunks — the flag M1 could not set.
+   *
+   * Read *before* the commit fold so the flag is present in `flags` when `significanceOf` sees it.
+   * Setting it afterwards would store a correctly-flagged commit whose score was computed as
+   * though it were not flagged, and the ranking is the only place the flag has any effect — the
+   * whole reason `format-only` exists is the `penaltyFormatOnly` term. Two writes in one run that
+   * disagree with each other are worse than not having the flag.
+   *
+   * Merged into the in-memory records as well as persisted, rather than re-reading every commit
+   * after the update: one source of truth per run, and no second scan of the whole history.
+   */
+  const formatOnly = new Set<CommitId>(store.analysis.formatOnlyCommits());
+
   for (const commit of store.analysis.commits()) {
     throwIfAborted(deps.signal);
     commits.set(commit.id, {
@@ -86,7 +100,7 @@ export async function runAnalysis(deps: AnalysisRunDeps): Promise<AnalysisSummar
       subject: commit.subject,
       hasBody: commit.body !== null && commit.body.length >= 40,
       trailerCount: commit.trailerCount,
-      flags: commit.flags,
+      flags: formatOnly.has(commit.id) ? [...commit.flags, 'format-only'] : commit.flags,
       parentCount: commit.parentCount,
       files: 0,
       churn: 0,
@@ -340,6 +354,10 @@ export async function runAnalysis(deps: AnalysisRunDeps): Promise<AnalysisSummar
   /* One transaction for all four outputs: a crash between them would leave ownership
      describing a knowledge table that no longer exists. */
   store.transaction((tx: Transaction) => {
+    /* Persisted so `excavate stats` and the M3 UI can *say* a commit is formatting,
+       not merely rank it lower. Written in the same transaction as the scores it
+       produced, so the flag and the score can never be observed disagreeing. */
+    tx.addCommitFlag([...formatOnly], 'format-only');
     tx.setSignificance(significance);
     tx.replaceKnowledge(knowledgeRows);
     tx.replaceOwnership(ownership);

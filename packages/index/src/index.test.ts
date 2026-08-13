@@ -27,13 +27,7 @@ import type {
   PathId,
   Person,
 } from '@wise-excavate/core';
-import {
-  isExcavateError,
-  NotImplementedError,
-  parseOid,
-  pathId,
-  timestamp,
-} from '@wise-excavate/core';
+import { isExcavateError, parseOid, pathId, timestamp } from '@wise-excavate/core';
 import type { GitBackend, Mailmap, RawChange, RawCommit } from '@wise-excavate/git';
 import { DEFAULT_WALK_SPEC } from '@wise-excavate/git';
 import type { Store, Transaction } from '@wise-excavate/store';
@@ -308,10 +302,19 @@ function fakeStore(options: FakeStoreOptions = {}): {
           }
         },
         insertHunks(rows) {
-          // Mirrors the real store, which throws until M2. A fake that accepted hunks
-          // would let a pipeline that writes them pass its tests and fail in the daemon.
+          /* Accepts them now: M2's content tier writes hunks for real. The referential checks
+             mirror the schema's foreign keys, which is the whole value of this fake — a
+             pipeline writing a hunk for a commit it never inserted must fail here, not in
+             the daemon. */
+          maybeFail('insertHunks');
+          for (const row of rows) {
+            fk(commitIds.has(row.commit), `hunks.commit_id → commits(${row.commit})`);
+            fk(log.files.has(row.file), `hunks.file_id → files(${row.file})`);
+          }
           calls.push(`insertHunks:${rows.length}`);
-          throw new NotImplementedError('Transaction.insertHunks', 'M2');
+        },
+        addCommitFlag(commits, flag) {
+          calls.push(`addCommitFlag:${flag}:${commits.length}`);
         },
         upsertPeople(rows) {
           calls.push(`upsertPeople:${rows.length}`);

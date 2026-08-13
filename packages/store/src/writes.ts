@@ -18,6 +18,8 @@ import type {
   AnalyzerId,
   Change,
   Commit,
+  CommitFlag,
+  CommitId,
   FileEntity,
   Hunk,
   IndexState,
@@ -25,7 +27,6 @@ import type {
   Person,
   Ref,
   Tag,
-  CommitId,
 } from '@wise-excavate/core';
 import { pathId } from '@wise-excavate/core';
 import type BetterSqlite3 from 'better-sqlite3';
@@ -35,6 +36,7 @@ import {
   bit,
   changeBind,
   commitBind,
+  encodeCommitFlags,
   encodeHunkKind,
   fileBind,
   personBind,
@@ -127,6 +129,18 @@ export function createTransactionApi(db: BetterSqlite3.Database): Transaction {
   }>(
     `INSERT INTO hunks (commit_id, file_id, old_start, old_len, new_start, new_len, kind)
      VALUES (@commitId, @fileId, @oldStart, @oldLen, @newStart, @newLen, @kind)`,
+  );
+
+  /**
+   * OR a flag bit into `commits.flags`, leaving every other bit alone.
+   *
+   * `flags = flags | ?` rather than a computed replacement, because the caller does not hold the
+   * commit's other flags and should not have to. A read-modify-write in JS would also race with
+   * nothing today and race with the incremental path tomorrow; letting SQLite do the bitwise OR
+   * keeps it correct either way.
+   */
+  const addCommitFlag = db.prepare<[number, number]>(
+    `UPDATE commits SET flags = flags | ? WHERE id = ?`,
   );
 
   // Upserted rather than inserted because a person's aggregate fields keep moving for
@@ -452,6 +466,12 @@ export function createTransactionApi(db: BetterSqlite3.Database): Transaction {
     ): void {
       assertInTransaction('setSignificance');
       for (const row of rows) updateSignificance.run(row.score, row.commit);
+    },
+
+    addCommitFlag(commits: readonly CommitId[], flag: CommitFlag): void {
+      assertInTransaction('addCommitFlag');
+      const bit = encodeCommitFlags([flag]);
+      for (const commit of commits) addCommitFlag.run(bit, commit);
     },
 
     recordAnalyzerRun(analyzer: AnalyzerId, version: number, throughOid: string): void {

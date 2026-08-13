@@ -27,7 +27,11 @@ import type {
   OwnershipWrite,
 } from './analysis.js';
 import type {
+  AnalyzerId,
+  BundleHash,
+  Change,
   Commit,
+  CommitFlag,
   CommitId,
   Confidence,
   Coupling,
@@ -49,9 +53,6 @@ import type {
   RevertPair,
   Tag,
   Timestamp,
-  Change,
-  BundleHash,
-  AnalyzerId,
 } from '@wise-excavate/core';
 
 import { latestSchemaVersion, migrations } from './migrations/index.js';
@@ -194,6 +195,14 @@ export interface Transaction {
   replaceOwnership(rows: readonly OwnershipWrite[]): void;
   replaceHotspots(rows: readonly HotspotWrite[]): void;
   /** Significance is scored after the walk, over stored rows, so it is an update. */
+  /**
+   * Add a flag to these commits, preserving the flags they already carry.
+   *
+   * Exists for `format-only`, which cannot be known at insert time: the metadata walk writes a
+   * commit's flags before any hunk has been read, and whether every hunk is whitespace-only is a
+   * fact about the diff body that only the content tier can see.
+   */
+  addCommitFlag(commits: readonly CommitId[], flag: CommitFlag): void;
   setSignificance(
     rows: readonly { readonly commit: CommitId; readonly score: number }[],
   ): void;
