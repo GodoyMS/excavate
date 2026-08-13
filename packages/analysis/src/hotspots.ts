@@ -68,6 +68,28 @@ export function normaliseLog(value: number, max: number): number {
   return Math.log1p(Math.max(0, value)) / Math.log1p(max);
 }
 
+/**
+ * A file needs at least this many changes to be a hotspot at all.
+ *
+ * Churn is meant to measure *repeated* modification — the "how often does this change" axis that
+ * makes a hotspot a hotspot. A file that was added in one commit and never touched again has a
+ * change *count* of one and no change *frequency*, and by the only definition that matters it is
+ * not risky to work on: nobody has ever had to work on it.
+ *
+ * Without this gate the model cannot tell "one 234-line commit" from "234 lines across ten
+ * commits", and it ranks them identically. The snapshot fixture made that concrete: a formatting
+ * sweep created 34 files in a single commit and nine of them took the top ten hotspot slots,
+ * pushing out the file three people had actually been fixing. Real repositories hide the flaw
+ * rather than fix it — ripgrep's rankings barely move — because their genuinely large files have
+ * also been edited many times, so the two axes happen to agree there.
+ *
+ * The deeper fix is to exclude the creating commit's insertions from churn entirely, which needs
+ * per-commit attribution this tier does not keep yet. This gate captures the same judgement in
+ * one condition, and errs toward silence: it can only ever remove a file from the ranking, never
+ * promote one.
+ */
+export const HOTSPOT_MIN_CHANGES = 2;
+
 export function hotspotOf(
   input: HotspotInput,
   maxima: { readonly churn: number; readonly complexity: number },

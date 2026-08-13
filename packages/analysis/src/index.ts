@@ -196,6 +196,7 @@ export {
 export type { HotspotFactors, HotspotInput } from './hotspots.js';
 export {
   complexityProxy,
+  HOTSPOT_MIN_CHANGES,
   hotspotOf,
   looksLikeFix,
   normaliseLog,

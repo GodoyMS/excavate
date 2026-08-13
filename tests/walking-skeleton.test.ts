@@ -64,11 +64,24 @@ const api = async (
 
 beforeAll(async () => {
   let builder = repo('walking-skeleton');
-  for (let n = 1; n <= COMMITS - 1; n += 1) {
+  /* `COMMITS - 2`, leaving room for the revisit below and the narrated commit last, so the total
+     stays exactly COMMITS — the paging assertions are written against that number. */
+  for (let n = 1; n <= COMMITS - 2; n += 1) {
     builder = builder.commit(`commit ${n}`, (c) =>
       c.add(`src/file-${n}.ts`, `export const value = ${n};\n`),
     );
   }
+  /**
+   * One file changed more than once, so the repository contains a hotspot at all.
+   *
+   * Every other commit above adds a brand-new file, and `HOTSPOT_MIN_CHANGES` correctly refuses
+   * to rank a file nobody has ever had to come back to. Without this edit the rollup assertion
+   * below passed only because the ranking used to admit any file with a line count — which is
+   * the bug the gate fixes, so the fixture is what has to change.
+   */
+  builder = builder.commit('commit 1, revisited', (c) =>
+    c.edit('src/file-1.ts', 'export const value = 1;\nexport const revised = true;\n'),
+  );
   /* Last, so it is reachable without paging, and with a body — a detail route that only
      ever returned a subject would pass a test written against subject-only commits. */
   builder = builder.commit(NARRATED, (c) =>
@@ -110,7 +123,10 @@ describe('indexing writes the history to SQLite', () => {
 
   it('stores the people and files the walk saw', () => {
     expect(server.session.store.people.count()).toBeGreaterThan(0);
-    expect(server.session.store.files.count()).toBe(COMMITS);
+    /* One fewer file than commits: every commit adds a new file except the revisit, which edits
+       `src/file-1.ts`. Asserting `COMMITS` here would be asserting the fixture's old
+       one-file-per-commit shape rather than that the walk recorded what it saw. */
+    expect(server.session.store.files.count()).toBe(COMMITS - 1);
   });
 
   it('reaches the same commits the fixture built, by object id', () => {

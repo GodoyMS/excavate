@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Excavate — git tells you what changed; Excavate tells you why.",
+  "description": "Excavate \u2014 git tells you what changed; Excavate tells you why.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -28,6 +28,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@types/node": "^22.19.1",
     "@wise-excavate/analysis": "workspace:*",
     "@wise-excavate/core": "workspace:*",
     "@wise-excavate/git": "workspace:*",
@@ -36,11 +37,11 @@
     "@wise-excavate/server": "workspace:*",
     "@wise-excavate/store": "workspace:*",
     "@wise-excavate/ui": "workspace:*",
-    "@types/node": "^22.19.1",
     "eslint": "^9.39.1",
     "prettier": "^3.6.2",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.4",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "wise-excavate": "workspace:*"
   }
 }

@@ -1,0 +1,66 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`excavate stats output > renders a populated repository the same way every time 1`] = `
+"
+  /repo
+  7 commits · 3 people · 39 files
+
+  KNOWLEDGE ISLANDS
+  One person holds the knowledge, and they have stopped contributing.
+
+  ● src/util.ts                                                 Ada Lovelace  last seen 2.8y ago
+  ● src/parse.ts                                                Ada Lovelace  last seen 2.8y ago
+
+  HOTSPOTS
+  churn × complexity × recency × fix density. Every factor shown.
+
+   score  churn cmplx recent fixes   chgs  file
+   1.524  1.00 1.00    .91  .67      3  src/walk.ts
+
+  MOST SIGNIFICANT COMMITS
+  Scored on scale, message quality, and path rarity — penalised for codemods,
+  lockfiles, and generated output, so those never reach this list.
+
+  <oid>  2023-02-01  feat: add the walker, which is the core of the tool  2f
+  <oid>  2023-03-01  feat: add the parser Ada alone ever touches  1f
+  <oid>  2025-11-15  fix: another walker crash, this time on deep nesting  1f
+  <oid>  2025-09-01  fix: correct the walker on empty input  1f
+  <oid>  2025-12-10  style: rustfmt everything  34f
+  <oid>  2025-12-05  chore: regenerate the client  1f
+  <oid>  2025-12-01  chore: update the lockfile  1f
+
+  CAST OF CHARACTERS
+  By commits authored. Bots excluded.
+
+       4  Grace Hopper                    active 22d ago
+       2  Ada Lovelace                    inactive 2.8y
+"
+`;
+
+exports[`excavate stats output > says what is missing rather than printing empty tables 1`] = `
+"
+  /repo
+  1 commits · 1 people · 1 files
+
+  KNOWLEDGE ISLANDS
+  One person holds the knowledge, and they have stopped contributing.
+
+  None. Every file has either more than one knowledgeable owner or an active one.
+
+  HOTSPOTS
+  churn × complexity × recency × fix density. Every factor shown.
+
+  No ranking available — the analysis tier has not been built.
+
+  MOST SIGNIFICANT COMMITS
+  Scored on scale, message quality, and path rarity — penalised for codemods,
+  lockfiles, and generated output, so those never reach this list.
+
+  <oid>  2025-12-20  initial commit  1f
+
+  CAST OF CHARACTERS
+  By commits authored. Bots excluded.
+
+       1  Ada Lovelace                    active 12d ago
+"
+`;

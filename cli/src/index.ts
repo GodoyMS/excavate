@@ -24,6 +24,15 @@ import type { RepoSession } from '@wise-excavate/server';
 import { buildStatsReport, createServer, openSession } from '@wise-excavate/server';
 import { skeletonPage } from '@wise-excavate/ui';
 import { renderStats, statsAsJson, styleFor } from './stats.js';
+
+/**
+ * Re-exported so the report's layout can be snapshot-tested without spawning the binary and
+ * parsing its stdout. The rendering rules — islands first, no bare scores, factor breakdowns —
+ * are product decisions, and a test that reaches them through a subprocess would be asserting on
+ * process plumbing as much as on the report.
+ */
+export { elidePath, renderStats, statsAsJson, styleFor } from './stats.js';
+export type { StatsStyle } from './stats.js';
 import { Command, CommanderError, InvalidArgumentError } from 'commander';
 
 import {

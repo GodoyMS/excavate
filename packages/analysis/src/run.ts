@@ -21,7 +21,7 @@ import type {
   Transaction,
 } from '@wise-excavate/store';
 
-import { hotspotOf, looksLikeFix } from './hotspots.js';
+import { HOTSPOT_MIN_CHANGES, hotspotOf, looksLikeFix } from './hotspots.js';
 import { ANALYZER_IDS } from './index.js';
 import { isKnowledgeIsland, summariseOwnership, type KnowledgeRow } from './ownership.js';
 import {
@@ -294,9 +294,18 @@ export async function runAnalysis(deps: AnalysisRunDeps): Promise<AnalysisSummar
     });
   }
 
+  /* The maxima are taken over rankable files only. A single generated file added in one enormous
+     commit would otherwise set `maxChurn` for the whole repository, and every real source file's
+     normalised churn would be divided down toward zero by a file that is not even in the
+     ranking. Normalising against the population being ranked is the only version that produces a
+     readable spread. */
+  const ranks = (acc: { readonly changes: number }): boolean =>
+    acc.changes >= HOTSPOT_MIN_CHANGES;
+
   let maxChurn = 0;
   let maxComplexity = 0;
   for (const file of files.values()) {
+    if (!ranks(file)) continue;
     maxChurn = Math.max(maxChurn, file.churn);
     maxComplexity = Math.max(maxComplexity, complexityOf(file));
   }
@@ -304,6 +313,7 @@ export async function runAnalysis(deps: AnalysisRunDeps): Promise<AnalysisSummar
   const hotspots: HotspotWrite[] = [];
   for (const [file, acc] of files) {
     throwIfAborted(deps.signal);
+    if (!ranks(acc)) continue;
     const factors = hotspotOf(
       {
         totalChurn: acc.churn,

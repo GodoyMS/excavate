@@ -38,8 +38,17 @@ export const DEFAULT_REPORT_LIMITS: ReportLimits = {
   people: 8,
 };
 
+/**
+ * What a report needs from a session, and no more.
+ *
+ * The same narrowing `IndexableSession` uses in the CLI, for the same two reasons: it states in
+ * the type that assembling a report neither starts a server nor mutates an index, and it lets the
+ * snapshot tests drive this from a bare store instead of standing up a daemon to render a table.
+ */
+export type ReportableSession = Pick<RepoSession, 'store' | 'summary'>;
+
 export function buildStatsReport(
-  session: RepoSession,
+  session: ReportableSession,
   now: Timestamp,
   limits: ReportLimits = DEFAULT_REPORT_LIMITS,
 ): StatsReport {
