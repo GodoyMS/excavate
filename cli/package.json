@@ -1,6 +1,6 @@
 {
   "name": "wise-excavate",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Git history archaeology in your terminal. Hotspots, knowledge islands, and why a line exists.",
   "license": "Apache-2.0",
@@ -15,7 +15,8 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "dependencies": {
     "@wise-excavate/core": "workspace:*",
@@ -45,5 +46,8 @@
     "hotspots",
     "code-ownership",
     "bus-factor"
-  ]
+  ],
+  "scripts": {
+    "prepublishOnly": "node ../scripts/require-pnpm-publish.mjs"
+  }
 }

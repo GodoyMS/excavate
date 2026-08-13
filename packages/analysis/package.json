@@ -39,5 +39,8 @@
   ],
   "publishConfig": {
     "access": "public"
+  },
+  "scripts": {
+    "prepublishOnly": "node ../../scripts/require-pnpm-publish.mjs"
   }
 }
