@@ -20,8 +20,8 @@ import {
 } from './exec.js';
 import type { Mailmap } from './mailmap.js';
 import { parseMailmap } from './mailmap.js';
-import type { RawChange, RawCommit, WalkSpec } from './walk.js';
-import { parseLogStream, walkArgs } from './walk.js';
+import type { RawChange, RawCommit, RawCommitHunks, WalkSpec } from './walk.js';
+import { hunkArgs, parseHunkStream, parseLogStream, walkArgs } from './walk.js';
 
 export interface RawRef {
   readonly name: string;
@@ -92,6 +92,14 @@ export interface GitBackend {
   refs(): Promise<readonly RawRef[]>;
   /** Streams. Never materialises the whole history — that is the point. */
   walk(spec: WalkSpec): AsyncIterable<RawCommit>;
+  /**
+   * Hunk geometry for every commit, as a second pass.
+   *
+   * Separate from `walk` because `--patch` cannot share a stream with delimited commit records —
+   * file content can contain any byte, including whatever sentinel the framing chose. See
+   * `hunkArgs`.
+   */
+  hunks(spec: WalkSpec): AsyncIterable<RawCommitHunks>;
   diff(from: Oid | null, to: Oid, options: DiffOptions): Promise<readonly RawChange[]>;
   blame(
     path: string,
@@ -259,6 +267,32 @@ export class CliGitBackend implements GitBackend {
       // it can never mask a walk that died part way through.
       if (yielded > 0 || !isUnbornHead(error)) throw error;
     }
+  }
+
+  /**
+   * The hunk pass — a second traversal, and it has to be.
+   *
+   * See {@link hunkArgs} for why hunks cannot ride along with the metadata walk: `--patch` puts
+   * arbitrary file content into the stream, and `ripgrep` proved there is no byte left to
+   * delimit commit records with. Framing here is structural instead of sentinel-based.
+   *
+   * Streamed, never materialised, for the same reason the metadata walk is: a repository's
+   * complete patch text is far larger than its history and does not fit in memory. Callers get
+   * one record per commit and are expected to write as they go.
+   */
+  async *hunks(spec: WalkSpec): AsyncGenerator<RawCommitHunks, void, undefined> {
+    const stream = spawnGit(this.command(hunkArgs(spec)));
+    let drained = false;
+    try {
+      for await (const record of parseHunkStream(stream.stdout)) yield record;
+      drained = true;
+    } finally {
+      if (!drained) stream.kill();
+    }
+    /* No unborn-HEAD tolerance here, unlike `walk`. The hunk pass only ever runs after the
+       metadata walk has already indexed commits, so an empty repository cannot reach it, and
+       swallowing the error would hide a real failure. */
+    await stream.completion();
   }
 
   diff(

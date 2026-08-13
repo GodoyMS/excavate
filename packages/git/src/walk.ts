@@ -21,6 +21,7 @@
 import type {
   ChangeKind,
   HistoryProjection,
+  HunkKind,
   Identity,
   Oid,
   Timestamp,
@@ -118,6 +119,22 @@ export interface RawChange {
   readonly insertions: number;
   readonly deletions: number;
   readonly isBinary: boolean;
+}
+
+/**
+ * One contiguous changed region, as `@@ -oldStart,oldLen +newStart,newLen @@` describes it.
+ *
+ * `oldLen === 0` is a pure insertion and `newLen === 0` a pure deletion; git reports the start
+ * line *before* which an insertion lands, which is why the pair is kept rather than collapsed
+ * into a single range. The store writes NULL for the side that does not exist, because a
+ * missing position is not position zero.
+ */
+export interface RawHunk {
+  readonly oldStart: number;
+  readonly oldLen: number;
+  readonly newStart: number;
+  readonly newLen: number;
+  readonly kind: HunkKind;
 }
 
 /**
@@ -339,6 +356,217 @@ function parseOffsetMinutes(dateWithOffset: string): number {
   return sign === '-' ? -total : total;
 }
 
+/* ── The hunk pass ─────────────────────────────────────────────────────────── */
+
+/**
+ * Hunk geometry for one file in one commit.
+ *
+ * `path` is the file as it exists *after* the commit — the `+++ b/…` side — except for a
+ * deletion, where only the `--- a/…` side exists. That matches how `changes` records a path, so
+ * the indexer can resolve it through the same alias machinery without a special case.
+ */
+export interface RawFileHunks {
+  readonly path: string;
+  readonly hunks: readonly RawHunk[];
+}
+
+export interface RawCommitHunks {
+  readonly oid: Oid;
+  readonly files: readonly RawFileHunks[];
+}
+
+/**
+ * Why hunks are a **second pass** rather than another format on the metadata walk.
+ *
+ * The first design asked one `git log` for `--raw --numstat -z --patch` together and framed
+ * commit records with a `\x01` sentinel, as the metadata walk does. It parsed every fixture
+ * correctly and died on `ripgrep`, because `--patch` puts arbitrary *file content* into the
+ * stream: `tests/data/sherlock.br` is Brotli-compressed, git found no NUL in its first 8 kB and
+ * therefore judged it text, and printed its raw bytes — one of which is `\x01`. Exactly one, in
+ * 15.2 million bytes of patch output. That stream also contains one literal NUL, so there is no
+ * byte available to delimit records with: any sentinel can appear in a file.
+ *
+ * What makes *this* pass safe is structural rather than probabilistic. Under `--unified=0` every
+ * line git emits belongs to a closed set of shapes, and every line carrying file content is
+ * prefixed with `+`, `-`, or `\`. A line that is *exactly* an object id and nothing else is
+ * therefore not expressible as content — a file line that happened to read `a1b2c3…` arrives as
+ * `+a1b2c3…`. So `--format=%H` on its own line is an unambiguous record boundary, and no
+ * sentinel is needed at all.
+ *
+ * The same reasoning picks `+++ b/<path>` over `diff --git a/<path> b/<path>` for the path: the
+ * `diff --git` line holds two space-separated paths that may themselves contain spaces, so
+ * `a/my file b/my file` is genuinely ambiguous, while `+++ b/my file` is not.
+ */
+export function hunkArgs(spec: WalkSpec): readonly string[] {
+  const args = [
+    'log',
+    /* Just the object id, alone on its line — the record boundary. No `-z`: NUL is not a safe
+       terminator here either, and with this framing nothing needs one. */
+    '--format=%H',
+    '--topo-order',
+    '--reverse',
+    '--patch',
+    /* Not an optimisation. Context lines would blur the boundaries this pass exists to record:
+       two edits four lines apart are one hunk at the default `-U3` and two at `-U0`, and two is
+       the truth about what changed. */
+    '--unified=0',
+    /* A configured `color.ui = always` would wrap body lines in escape sequences and defeat the
+       whitespace-only comparison. */
+    '--no-color',
+    /* Renames must be detected identically to the metadata walk or a file's hunks would attach
+       to a different path than its changes did. */
+    `--find-renames=${spec.findRenames}%`,
+    /* Quoting is what makes `+++ b/<path>` lossy for non-ASCII bytes; turning it off keeps the
+       path exactly as it is stored in the tree. */
+    '-c',
+    'core.quotePath=false',
+  ];
+  if (spec.findCopies) args.push('--find-copies');
+  if (spec.projection === 'first-parent') args.push('--first-parent');
+  if (spec.includeAllRefs) args.push('--all');
+  if (spec.since !== null) args.push(`${spec.since}..HEAD`);
+  /* `-c` is a *git* option, not a `log` option, so it has to precede the subcommand. Built here
+     rather than at the head of the array so the reasoning above stays next to the flag. */
+  const quoteAt = args.indexOf('-c');
+  const quoting = args.splice(quoteAt, 2);
+  return [...quoting, ...args];
+}
+
+/** A bare object id on its own line: the record boundary. 40 hex for SHA-1, 64 for SHA-256. */
+const RECORD_LINE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
+
+/**
+ * Parse the hunk pass into one record per commit.
+ *
+ * Streaming, and deliberately tolerant of the shapes that carry no hunks — a pure rename, a mode
+ * change, a binary file git summarised as "Binary files … differ". Those yield a file entry with
+ * an empty hunk list rather than being dropped, because "this commit touched this file and
+ * changed no lines in it" is a different fact from "this commit did not touch this file".
+ */
+export async function* parseHunkStream(
+  stream: AsyncIterable<Uint8Array>,
+): AsyncGenerator<RawCommitHunks> {
+  /* Streaming decode, for the same reason `parseLogStream` uses one: a chunk boundary lands
+     mid-character often enough that a one-shot decode per chunk would corrupt paths.
+     Non-fatal by design — this stream deliberately carries file content git *misjudged* as
+     text (`ripgrep` ships a Brotli fixture), so invalid UTF-8 is expected rather than
+     exceptional. It becomes U+FFFD inside a body line, where nothing reads it: only the
+     line's first character and its whitespace-normalised form matter here. */
+  const decoder = new TextDecoder('utf-8');
+  let oid: Oid | null = null;
+  let files: RawFileHunks[] = [];
+  let path: string | null = null;
+  let hunks: RawHunk[] = [];
+  let current: RawHunk | null = null;
+  let removed: string[] = [];
+  let added: string[] = [];
+  let buffer = '';
+
+  const flushHunk = (): void => {
+    if (current === null) return;
+    const kind: HunkKind = isWhitespaceOnly(removed, added)
+      ? 'whitespace-only'
+      : 'content';
+    hunks.push(kind === 'content' ? current : { ...current, kind });
+    current = null;
+    removed = [];
+    added = [];
+  };
+
+  const flushFile = (): void => {
+    flushHunk();
+    if (path !== null) files.push({ path, hunks });
+    path = null;
+    hunks = [];
+  };
+
+  const flushCommit = (): RawCommitHunks | null => {
+    flushFile();
+    const record = oid === null ? null : { oid, files };
+    oid = null;
+    files = [];
+    return record;
+  };
+
+  const handle = (line: string): RawCommitHunks | null => {
+    if (RECORD_LINE.test(line)) {
+      const record = flushCommit();
+      oid = parseOid(line);
+      return record;
+    }
+    if (line.startsWith('diff --git ')) {
+      flushFile();
+      return null;
+    }
+    /* `+++ b/<path>` names the post-image and `--- a/<path>` the pre-image. Taking `+++` when
+       it is a real path and falling back to `---` covers a deletion, whose post-image is
+       `/dev/null`. Checked before the `+`/`-` body branches below, which they would otherwise
+       swallow. */
+    if (line.startsWith('+++ ')) {
+      const named = line.slice(4);
+      if (named !== '/dev/null') path = stripDiffPrefix(named);
+      return null;
+    }
+    if (line.startsWith('--- ')) {
+      const named = line.slice(4);
+      if (path === null && named !== '/dev/null') path = stripDiffPrefix(named);
+      return null;
+    }
+    const header = HUNK_HEADER.exec(line);
+    if (header !== null) {
+      flushHunk();
+      current = {
+        oldStart: Number(header[1]),
+        oldLen: header[2] === undefined ? 1 : Number(header[2]),
+        newStart: Number(header[3]),
+        newLen: header[4] === undefined ? 1 : Number(header[4]),
+        kind: 'content',
+      };
+      return null;
+    }
+    if (current !== null) {
+      if (line.startsWith('+')) added.push(withoutWhitespace(line.slice(1)));
+      else if (line.startsWith('-')) removed.push(withoutWhitespace(line.slice(1)));
+    }
+    return null;
+  };
+
+  for await (const chunk of stream) {
+    buffer += decoder.decode(chunk, { stream: true });
+    let newline = buffer.indexOf('\n');
+    while (newline >= 0) {
+      const record = handle(buffer.slice(0, newline));
+      if (record !== null) yield record;
+      buffer = buffer.slice(newline + 1);
+      newline = buffer.indexOf('\n');
+    }
+  }
+  buffer += decoder.decode();
+  if (buffer !== '') {
+    const record = handle(buffer);
+    if (record !== null) yield record;
+  }
+  const last = flushCommit();
+  if (last !== null) yield last;
+}
+
+/**
+ * Strip the `a/` or `b/` prefix git puts on diff paths.
+ *
+ * Only one prefix, and only if present: a file genuinely named `b/thing` becomes `b/b/thing` on
+ * the wire, so a global replace would corrupt it.
+ */
+function stripDiffPrefix(named: string): string {
+  /* git appends a TAB after the path when the path contains whitespace, precisely so the end of
+     the name is unambiguous — and then anything after that tab is not part of it. Found by a
+     fixture with a space in the filename, which came back as `docs/my notes file.md\t` and
+     matched nothing. Cutting at the first tab rather than trimming, because a trailing space is
+     a legal filename character and `trim()` would silently eat it. */
+  const tab = named.indexOf('\t');
+  const path = tab < 0 ? named : named.slice(0, tab);
+  return path.startsWith('a/') || path.startsWith('b/') ? path.slice(2) : path;
+}
+
 /* ── The diff section ──────────────────────────────────────────────────────── */
 
 /** A `--raw` entry: authoritative for what happened to the file. */
@@ -399,6 +627,9 @@ function parseDiffSection(section: string): readonly RawChange[] {
   while (index < tokens.length) {
     const token = tokens[index];
     if (token === undefined) break;
+    /* An empty token ends the block. git does not emit one mid-numstat, so reaching this
+       means the block is over and anything after it is not ours to read. */
+    if (token === '') break;
     index += 1;
     const parsed = parseCounts(token);
     if (parsed.renamedFrom) {
@@ -415,6 +646,49 @@ function parseDiffSection(section: string): readonly RawChange[] {
   }
 
   return combine(statuses, counts);
+}
+
+/**
+ * `@@ -oldStart[,oldLen] +newStart[,newLen] @@` — the length is omitted when it is 1.
+ *
+ * Anchored, because a line *inside* a diff body can begin with `@@` perfectly legally: any
+ * commit that edits this file's own documentation contains such a line, and an unanchored
+ * search over the body would invent hunks from prose. Under `--unified=0` there is no context,
+ * so a body line always carries a leading `+`, `-`, or `\` and can never be mistaken for a
+ * header — but the anchor costs nothing and removes the need to rely on that.
+ */
+const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
+
+/**
+ * Every whitespace character removed — the normal form the whitespace-only test compares in.
+ *
+ * All whitespace, not just leading: a reindent, a tab-to-space conversion, a line rewrapped at
+ * a different column, and a trailing-space strip are all the same kind of change, and a test
+ * that only looked at indentation would call three of them content.
+ */
+function withoutWhitespace(line: string): string {
+  return line.replace(/\s+/gu, '');
+}
+
+/**
+ * Whether a hunk changes nothing but whitespace — the classification M1 could not make at all.
+ *
+ * The question is precisely "would `git diff -w` show this hunk as empty", so the answer is
+ * whether the removed and added bodies are identical once whitespace is gone. Comparing
+ * sequences rather than sets, because reordering two lines is a real change that leaves both
+ * multisets equal.
+ *
+ * Lines that normalise to nothing are dropped first, which is what makes *adding a blank line*
+ * come out as whitespace-only rather than as content: `[]` against `['']` would otherwise
+ * differ, and inserting an empty line is the most common whitespace change there is.
+ */
+function isWhitespaceOnly(removed: readonly string[], added: readonly string[]): boolean {
+  const left = removed.filter((line) => line !== '');
+  const right = added.filter((line) => line !== '');
+  /* Neither side has substance: the hunk moved blank lines around. Whitespace-only, and the
+     `length === 0` case has to be admitted explicitly or the comparison below is vacuous. */
+  if (left.length !== right.length) return false;
+  return left.every((line, i) => line === right[i]);
 }
 
 interface ParsedStatus {
