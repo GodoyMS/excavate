@@ -14,7 +14,13 @@ export default tseslint.config(
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: 'module',
-      globals: { console: 'readonly', process: 'readonly', URL: 'readonly' },
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+        URL: 'readonly',
+        // `perf-assert.mjs` drives the index pipeline, whose run signature takes a signal.
+        AbortController: 'readonly',
+      },
     },
   },
 

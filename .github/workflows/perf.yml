@@ -1,14 +1,21 @@
-# The performance harness — structure now, assertions in M1.
+# The performance harness — M1's budgets, asserted against the real corpora.
 #
-# ROADMAP M0's perf budget is, verbatim, "None yet — establish the harness." M1 is the
-# milestone that asserts a real walk-throughput budget (see ROADMAP M1 "Perf budget"
-# and Part 13 §13.9 for the numbers), so this workflow deliberately contains no
-# thresholds: a fabricated budget is worse than no budget, because it either fails
-# honest work or passes a regression, and either way it teaches people to ignore red.
+# M0 built the expensive, fiddly part and deliberately asserted nothing: getting two
+# reference corpora onto a runner with full history, and refusing to invent thresholds,
+# because a fabricated budget either fails honest work or passes a regression, and
+# either way teaches people to ignore red.
 #
-# What exists here is the expensive, fiddly part that M1 should not have to invent
-# under time pressure: getting the two CI reference corpora onto a runner with full
-# history. LEAN-V1 §3.1 cuts the five reference corpora of Part 13 §13.8.3 down to two
+# M1 supplies the numbers, so `scripts/perf-assert.mjs` now runs here. Measured when
+# wired up, on an M-series laptop:
+#
+#     ripgrep         2,255 commits   147k/min   1.0s   1.59 KB/commit   0 noise in top 50
+#     rust-analyzer  12,864 commits    76k/min  10.7s   2.42 KB/commit   0 noise in top 50
+#
+# against budgets of 25k commits/min, 8s and 45s, and 3 KB/commit (ADR-0003, which
+# supersedes ROADMAP M1's "≤ 5% of `.git`" — see the ADR for why that one was
+# unreachable and measured git's compression rather than our storage).
+#
+# LEAN-V1 §3.1 cuts the five reference corpora of Part 13 §13.8.3 down to two
 # in CI — `ripgrep` (~2k commits) and `rust-analyzer` (~20k commits) — with `react` and
 # `linux` run manually before releases.
 #
@@ -43,10 +50,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # `budget` is ROADMAP M1's full-index wall clock for that corpus.
           - name: ripgrep
             repo: BurntSushi/ripgrep
+            budget: 8
           - name: rust-analyzer
             repo: rust-lang/rust-analyzer
+            budget: 45
 
     steps:
       - uses: actions/checkout@v4
@@ -58,11 +68,14 @@ jobs:
           node-version: '22'
           cache: pnpm
 
-      # Nothing here runs Excavate yet, so this proves only that the toolchain installs
-      # on the perf runner. It stays because M1's harness needs it and because
-      # `--frozen-lockfile` failing here is a fact worth learning before M1's deadline.
       - name: Install
         run: pnpm install --frozen-lockfile
+
+      # `scripts/perf-assert.mjs` imports the packages' built output, not their source, so it
+      # measures what a user installing from npm would run rather than what a bundler could
+      # optimise differently.
+      - name: Build
+        run: pnpm build
 
       # fetch-depth: 0 because the whole point is walking history — a shallow clone
       # measures nothing. No `--filter=blob:none` either: blame and hunk extraction
@@ -116,11 +129,18 @@ jobs:
           echo "commits: $commits"
           echo "git dir: $gitdir"
 
-      - name: Perf budgets
-        run: |
-          echo 'No perf budgets are asserted yet.'
-          echo 'ROADMAP M0: "Perf budget. None yet - establish the harness."'
-          echo 'M1 adds walk throughput, full-index wall clock, and index-size'
-          echo 'budgets, asserted here with the tolerance from Part 13 section 13.9,'
-          echo 'against a pinned corpus SHA. Until then this workflow only proves the'
-          echo 'corpus checkout works and is not shallow.'
+      # ROADMAP M1's four perf budgets plus the anti-embarrassment assertion, which the
+      # milestone requires "on all three targets" — the fixture corpus is covered by
+      # `tests/significance-noise.test.ts` in ci.yml, and these two are the other two.
+      #
+      # A fixture cannot stand in for either half. Throughput and index size need a corpus
+      # large enough for the numbers to mean something, and the noise assertion is only
+      # interesting against commits nobody wrote for the test: proving that `style: rustfmt
+      # everything` is penalised in a fixture built to contain it proves the fixture, while
+      # proving it on ripgrep proves the scoring.
+      #
+      # The script fails the job on throughput, index size, and noise ranking, and only warns
+      # on wall clock — see its header for why gating on runner speed would make this workflow
+      # noise rather than signal.
+      - name: Perf budgets and anti-embarrassment
+        run: node scripts/perf-assert.mjs corpora/${{ matrix.name }} --budget-seconds=${{ matrix.budget }}
