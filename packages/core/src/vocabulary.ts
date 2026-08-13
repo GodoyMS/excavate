@@ -59,7 +59,63 @@ export type RefKind = 'branch' | 'tag' | 'remote' | 'head';
 
 export type ChangeKind = 'add' | 'modify' | 'delete' | 'rename' | 'copy' | 'mode';
 
-export type HunkKind = 'content' | 'whitespace-only' | 'moved';
+/**
+ * Enumerated at runtime as well as in the type, because the ordinal is what the `hunks.kind`
+ * column stores. A reordering here silently reinterprets every row already on disk, so the
+ * order is part of the schema and the codec asserts against this list rather than a literal.
+ */
+export const HUNK_KINDS = ['content', 'whitespace-only', 'moved'] as const;
+export type HunkKind = (typeof HUNK_KINDS)[number];
+
+/* ── Typed relations ───────────────────────────────────────────────────────── */
+
+/**
+ * What one entity can be to another, stored in `links.link_kind`.
+ *
+ * `reverts` and `relands` are separate rather than one relation with a direction flag: they
+ * answer different questions ("was this undone?" versus "was this brought back?"), both can
+ * hold between the same pair, and a reader following one must not be shown the other by
+ * accident. `references-pr` points a commit at the pull request that carried it, which is the
+ * single highest-yield offline source of *why* — the number is usually in the subject line of
+ * every squash-merged commit in the repository.
+ */
+export const LINK_KINDS = ['reverts', 'relands', 'references-pr'] as const;
+export type LinkKind = (typeof LINK_KINDS)[number];
+
+/**
+ * The kind of thing a link endpoint is, stored in `links.from_kind` / `to_kind`.
+ *
+ * `pull-request` has no table of its own: at M2 a PR is known only by its number, mined from
+ * a commit message, so the endpoint id *is* the number. Inventing a `pull_requests` table to
+ * hold one integer would imply we had fetched the PR — which needs the network, and M2 is
+ * offline by construction.
+ */
+export const ENTITY_KINDS = ['commit', 'file', 'person', 'pull-request'] as const;
+export type EntityKind = (typeof ENTITY_KINDS)[number];
+
+/**
+ * How a link was derived, stored in `links.source` — the provenance half of the citation
+ * contract, and ordered weakest to strongest for revert detection's three tiers
+ * (Part 8 §8.5.3).
+ *
+ * - `subject-pattern` — the message *looks* like a revert ("Revert \"…\""), but nothing was
+ *   verified. The weakest tier, and the one most likely to be wrong: a commit titled
+ *   `Revert the retry logic` may be a hand-written change that reverts nothing.
+ * - `message-trailer` — git's own `This reverts commit <sha>.`, or `PR-URL:`, `Change-Id`.
+ *   The repository states the relation explicitly; we are reading, not guessing.
+ * - `diff-inverse` — the diffs are computed inverses of each other. Independent of what
+ *   anyone wrote, which is why it can confirm a revert whose message says nothing.
+ *
+ * Kept distinct from {@link Certainty} deliberately. Certainty is what *kind* of claim this
+ * is; source is *how we came to make it*. A diff-inverse revert and a trailer-declared revert
+ * are both `observed`, and a reader still deserves to know which one they are looking at.
+ */
+export const LINK_SOURCES = [
+  'subject-pattern',
+  'message-trailer',
+  'diff-inverse',
+] as const;
+export type LinkSource = (typeof LINK_SOURCES)[number];
 
 /**
  * Computed during indexing. The penalty flags are the mechanism by which noise is

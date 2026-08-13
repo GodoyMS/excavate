@@ -17,8 +17,9 @@ import { ExcavateError } from '@wise-excavate/core';
 import type { Migration } from '../index.js';
 import { migration as init } from './0001-init.js';
 import { migration as analysis } from './0002-analysis.js';
+import { migration as evidence } from './0003-evidence.js';
 
-const ORDERED: readonly Migration[] = [init, analysis];
+const ORDERED: readonly Migration[] = [init, analysis, evidence];
 
 /** The ordered migration list. `docs/schema.md` is generated from it. */
 export function migrations(): readonly Migration[] {

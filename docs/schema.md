@@ -6,7 +6,7 @@ The index is a single SQLite file, `index.db`, with its FTS5 tables inside it �
 sidecars (LEAN-V1 §5). This page is generated from the migrations, so it cannot drift from
 what the code actually creates.
 
-Schema version: **2**
+Schema version: **3**
 
 Migrations are applied in order and never edited once shipped; a change is always a new
 migration. Deliberately absent from v1 and named in `0001-init.ts`: the `hunks` table and
@@ -320,4 +320,99 @@ CREATE TABLE analyzer_runs (
   -- output is still current.
   through_oid TEXT    NOT NULL
 ) WITHOUT ROWID;
+```
+
+## 0003 — `0003_evidence`
+
+```sql
+-- ─── hunks: the line geometry of every change ────────────────────────────────
+-- One row per contiguous changed region per (commit, file). This is the table that turns
+-- "who last touched this file" into "which commits touched *line 142*", and it is what makes
+-- blame affordable: Part 9 §9's blame strategy uses it as a **pre-filter**, so a query about
+-- one line consults only the commits whose hunks actually overlap it instead of blaming the
+-- whole file and discarding the rest.
+--
+-- Deliberately *not* storing the diff text. Part 9's size estimate budgets 36 MB for 1.5M
+-- hunks, which is 24 bytes a row — geometry only. The text is reconstructible from git on
+-- demand, and storing it would multiply the index by the size of the repository's entire
+-- history, breaking ADR-0003's per-commit budget by orders of magnitude.
+--
+-- 'old_*' is NULL for an addition and 'new_*' is NULL for a deletion, which is the honest
+-- encoding: a pure insertion has no position in the old file. Zero would be a lie that reads
+-- as line zero.
+CREATE TABLE hunks (
+  commit_id INTEGER NOT NULL REFERENCES commits(id) ON DELETE CASCADE,
+  file_id   INTEGER NOT NULL REFERENCES files(id)   ON DELETE CASCADE,
+  old_start INTEGER,
+  old_len   INTEGER,
+  new_start INTEGER,
+  new_len   INTEGER,
+  -- HunkKind: 0=content 1=whitespace-only 2=moved. 'whitespace-only' is what finally lets
+  -- 'format-only' be set on a commit — M1 could only approximate it from scale and uniformity
+  -- because it had no view of the diff body.
+  kind      INTEGER NOT NULL
+);
+
+-- (file_id, commit_id) leading, not (commit_id, file_id): every M2 read path starts from a
+-- file and a line and asks which commits are relevant. The reverse order would make the
+-- pre-filter a scan, which is the whole cost this index exists to remove.
+CREATE INDEX hunks_by_file ON hunks (file_id, commit_id);
+
+-- Covers the overlap test directly, so 'which hunks in this file touch lines 140-150' is
+-- answered from the index without visiting the table.
+CREATE INDEX hunks_by_span ON hunks (file_id, new_start, new_len);
+
+-- ─── links: typed relations with their provenance ────────────────────────────
+-- Part 9's generic link table, and the generality is earned rather than speculative: M2 alone
+-- puts three genuinely different relations through it — revert pairs, re-land pairs, and
+-- pull-request references — and M5's eras and M8's agent surfaces add more. Six dedicated
+-- two-column tables would need six queries to answer "everything known about this commit".
+--
+-- 'confidence' and 'source' are the reason this is not just an edge list. Part 8 §8.5.3 gives
+-- revert detection three confidence tiers, and an answer that cannot say *how* it knows is
+-- exactly the uncited assertion the product treats as a bug.
+CREATE TABLE links (
+  from_kind  INTEGER NOT NULL,
+  from_id    INTEGER NOT NULL,
+  to_kind    INTEGER NOT NULL,
+  to_id      INTEGER NOT NULL,
+  link_kind  INTEGER NOT NULL,
+  -- 0..1. Deterministic, never a model's opinion: for a revert pair it is the tier that
+  -- matched — an explicit 'This reverts commit <sha>' trailer outranks an inverted diff,
+  -- which outranks a subject line that merely starts with 'Revert'.
+  confidence REAL    NOT NULL,
+  -- How it was derived, so the UI can name it. See LINK_SOURCES in core.
+  source     INTEGER NOT NULL,
+  -- For a PR reference, the number; for a revert pair, NULL. Kept here rather than in a
+  -- second table because '#1234' is the citation a reader actually wants to see.
+  detail     TEXT,
+  -- No two identical claims from the same source. A squash-merge subject that names the same
+  -- PR twice must not produce two pieces of evidence that then both rank.
+  PRIMARY KEY (from_kind, from_id, to_kind, to_id, link_kind, source)
+) WITHOUT ROWID;
+
+CREATE INDEX links_from ON links (from_kind, from_id, link_kind);
+CREATE INDEX links_to   ON links (to_kind, to_id, link_kind);
+
+-- ─── coupling: what changes together ─────────────────────────────────────────
+-- Part 8 §8.5.4. 'file_a < file_b' is enforced rather than conventional, because a pair
+-- stored in both orders would double every co-change count and halve every strength, and the
+-- bug would look like a plausible number rather than an error.
+--
+-- Bounded by the same cutoff the noise classifier uses: past roughly thirty files in one
+-- commit a human did not consider each file individually, so counting all 435 pairs of a
+-- 30-file commit as evidence of coupling would drown the real signal in codemod noise.
+CREATE TABLE coupling (
+  file_a     INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  file_b     INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  co_changes INTEGER NOT NULL,
+  -- Jaccard: co_changes / (changes(a) + changes(b) - co_changes). Normalised so a pair that
+  -- always moves together outranks a pair that merely both change often.
+  strength   REAL    NOT NULL,
+  PRIMARY KEY (file_a, file_b),
+  CHECK (file_a < file_b)
+) WITHOUT ROWID;
+
+CREATE INDEX coupling_by_strength ON coupling (file_a, strength DESC);
+CREATE INDEX coupling_reverse     ON coupling (file_b, strength DESC);
 ```

@@ -244,9 +244,10 @@ describe('storage layout', () => {
     expect(INDEX_FILE_NAME).toBe('index.db');
   });
 
-  it('starts at schema version 1', () => {
-    // v2 adds the analysis rollups (knowledge, ownership, hotspots, analyzer_runs).
-    expect(SCHEMA_VERSION).toBe(2);
+  it('reports the schema version the migration list produces', () => {
+    // v2 adds the analysis rollups (knowledge, ownership, hotspots, analyzer_runs);
+    // v3 adds what the evidence engine reads (hunks, links, coupling).
+    expect(SCHEMA_VERSION).toBe(3);
   });
 
   it('batches writes at the size the walk flushes on', () => {
@@ -305,12 +306,24 @@ describe('migrations', () => {
     });
   });
 
-  it('leave the hunk and rollup tables to the milestones that populate them', () => {
+  /**
+   * The same guard as before, with `hunks` and `coupling` moved to the other side of it.
+   *
+   * This test exists so that no table can appear in the schema before the milestone that
+   * populates it, because an empty table is indistinguishable from a feature that found
+   * nothing — and a tool whose only asset is trustworthy answers must never imply a
+   * capability it lacks. M2 creates `hunks`, `links` and `coupling` *and* fills them, so they
+   * now belong in the present list. `eras` and `timeline_buckets` are still M5's.
+   */
+  it('creates only the tables the current milestones populate', () => {
     const path = tempIndexPath();
     open(path);
     inspect(path, (db) => {
       const tables = tableNames(db);
-      for (const deferred of ['hunks', 'coupling', 'eras', 'timeline_buckets']) {
+      for (const present of ['hunks', 'links', 'coupling']) {
+        expect(tables).toContain(present);
+      }
+      for (const deferred of ['eras', 'timeline_buckets', 'embeddings']) {
         expect(tables).not.toContain(deferred);
       }
     });
