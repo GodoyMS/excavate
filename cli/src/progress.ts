@@ -37,7 +37,7 @@ export type IndexProgressEvent = Extract<ServerEvent, { type: 'index.progress' }
  */
 export const DEFAULT_PROGRESS_STRIDE = 2_500;
 
-/** Width of the tier column; both current tiers are eight characters. */
+/** Width of the tier column; the longest tier name is eight characters. */
 const TIER_COLUMN = 10;
 
 /**
@@ -47,6 +47,8 @@ const TIER_COLUMN = 10;
  */
 const TIER_UNIT: Readonly<Record<Tier, string>> = {
   metadata: 'commit',
+  // The hunk pass is a second traversal of the same history, so its unit is a commit too.
+  content: 'commit',
   analysis: 'step',
 };
 

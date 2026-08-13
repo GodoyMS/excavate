@@ -40,7 +40,12 @@ import type {
   Release,
   RevertPair,
 } from '@wise-excavate/core';
-import { NotImplementedError } from '@wise-excavate/core';
+import {
+  ExcavateError,
+  NotImplementedError,
+  commitId,
+  fileId,
+} from '@wise-excavate/core';
 import type BetterSqlite3 from 'better-sqlite3';
 
 import type {
@@ -51,7 +56,7 @@ import type {
   IdentityRow,
   PersonRow,
 } from './codec.js';
-import { toChange, toCommit, toFileEntity, toPerson } from './codec.js';
+import { decodeHunkKind, toChange, toCommit, toFileEntity, toPerson } from './codec.js';
 import { decodeCommitCursor, encodeCommitCursor } from './cursor.js';
 import type {
   BundleCache,
@@ -175,6 +180,36 @@ export interface Queries {
   readonly bundles: BundleCache;
 }
 
+/** A `hunks` row. NULL on the side that does not exist — see `insertHunks` on why not zero. */
+interface HunkRow {
+  readonly commit_id: number;
+  readonly file_id: number;
+  readonly old_start: number | null;
+  readonly old_len: number | null;
+  readonly new_start: number | null;
+  readonly new_len: number | null;
+  readonly kind: number;
+}
+
+/**
+ * Rehydrate a hunk, turning the stored NULLs back into the zero-length form the domain uses.
+ *
+ * The asymmetry is deliberate and is documented at both ends: the *column* is NULL because "no
+ * position" is not position zero and an overlap query must not match it, while the *entity*
+ * carries `oldLen: 0` because a consumer computing a range wants arithmetic, not a null check.
+ */
+function hunkRow(row: HunkRow): Hunk {
+  return {
+    commit: commitId(row.commit_id),
+    file: fileId(row.file_id),
+    oldStart: row.old_start ?? 0,
+    oldLen: row.old_len ?? 0,
+    newStart: row.new_start ?? 0,
+    newLen: row.new_len ?? 0,
+    kind: decodeHunkKind(row.kind),
+  };
+}
+
 export function createQueries(db: BetterSqlite3.Database): Queries {
   const selectCommitByOid = db.prepare<[string], CommitRow>(
     `SELECT ${COMMIT_COLUMNS} FROM commits WHERE oid = ?`,
@@ -194,6 +229,46 @@ export function createQueries(db: BetterSqlite3.Database): Queries {
     HOT_SQL.parentsOf,
   );
   const selectChangesIn = db.prepare<[number], ChangeRow>(HOT_SQL.changesIn);
+
+  /**
+   * Hunk geometry for one file in one commit, in file order.
+   *
+   * Ordered by the new-side position so a reader walks the file top to bottom, with the old side
+   * as the tie-break for a hunk that only deletes (its `new_start` is NULL, and NULLs sort first
+   * in SQLite, which puts pure deletions before the additions they sit among — acceptable, and
+   * stable, which is what a snapshot test needs).
+   */
+  const selectHunksIn = db.prepare<[number, number], HunkRow>(
+    `SELECT commit_id, file_id, old_start, old_len, new_start, new_len, kind
+       FROM hunks WHERE commit_id = ? AND file_id = ?
+      ORDER BY new_start, old_start`,
+  );
+
+  /**
+   * Every commit whose hunks overlap a line range in one file — **blame's pre-filter**.
+   *
+   * This is the query the `hunks` table exists for. Part 9's blame strategy is to consult only
+   * the commits that could possibly have touched the lines in question rather than blaming a
+   * whole file and discarding the rest, and "could possibly have touched" is exactly this
+   * overlap test. On a 3,000-line file with 400 commits it turns a full blame into a handful.
+   *
+   * The overlap condition is the standard half-open one, written on the *new* side because that
+   * is the geometry a reader's line numbers refer to: two ranges intersect when each starts
+   * before the other ends. Hunks with a NULL `new_start` are pure deletions — they removed lines
+   * that are no longer there to ask about — and are excluded, because a range in the current
+   * file cannot overlap lines that the commit deleted.
+   *
+   * Newest first, because the most recent commit to touch a line is the one a reader wants
+   * first, and a caller that only needs "who last changed this" can stop after one row.
+   */
+  const selectTouching = db.prepare<[number, number, number], { commit_id: number }>(
+    `SELECT DISTINCT commit_id FROM hunks
+       WHERE file_id = ?
+         AND new_start IS NOT NULL
+         AND new_start <= ?
+         AND new_start + new_len > ?
+       ORDER BY commit_id DESC`,
+  );
 
   const selectMostSignificant = db.prepare<[number], CommitRow>(
     `SELECT ${COMMIT_COLUMNS} FROM commits ORDER BY significance DESC, id DESC LIMIT ?`,
@@ -426,8 +501,28 @@ export function createQueries(db: BetterSqlite3.Database): Queries {
       return hydrate(selectMostSignificant.all(limit));
     },
 
-    hunksIn(_commit: CommitId, _file: FileId): readonly Hunk[] {
-      throw new NotImplementedError('CommitQueries.hunksIn', 'M2');
+    hunksIn(commit: CommitId, file: FileId): readonly Hunk[] {
+      return selectHunksIn.all(commit, file).map(hunkRow);
+    },
+
+    commitsTouching(
+      file: FileId,
+      startLine: number,
+      endLine: number,
+    ): readonly CommitId[] {
+      /* Half-open, and validated rather than silently coerced: an inverted or empty range is a
+           caller bug, and returning "no commits" for it would look exactly like a line nobody
+           has ever touched — the one answer this query must never invent. */
+      if (endLine <= startLine) {
+        throw new ExcavateError(
+          'INVALID_TARGET',
+          `line range [${startLine}, ${endLine}) is empty; a range must contain at least one line`,
+          { details: { startLine, endLine } },
+        );
+      }
+      return selectTouching
+        .all(file, endLine - 1, startLine)
+        .map((row) => commitId(row.commit_id));
     },
 
     isAncestor(ancestor: CommitId, descendant: CommitId): boolean {

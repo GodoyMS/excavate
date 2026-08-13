@@ -1315,10 +1315,23 @@ describe('integrityCheck', () => {
 /* ── Deferred surface ──────────────────────────────────────────────────────── */
 
 describe('the deferred query surface', () => {
+  /**
+   * The M2 queries have moved off this list, so the list asserts the *other* half too: a query
+   * that is implemented must answer rather than throw. Without that, deleting a line above would
+   * look like progress whether or not anything was built.
+   */
+  it('answers the queries M2 implemented, on an empty index', () => {
+    const store = memoryStore();
+    expect(store.commits.hunksIn(commitId(1), fileId(1))).toEqual([]);
+    expect(store.commits.commitsTouching(fileId(1), 1, 2)).toEqual([]);
+    // The writer too: an empty batch is a no-op rather than a throw, which is what lets the
+    // content tier flush unconditionally without checking whether it collected anything.
+    expect(() => store.transaction((tx) => tx.insertHunks([]))).not.toThrow();
+  });
+
   it('names the milestone that will implement each stub, rather than returning empty', () => {
     const store = memoryStore();
     const deferred: readonly (readonly [string, () => unknown])[] = [
-      ['commits.hunksIn', () => store.commits.hunksIn(commitId(1), fileId(1))],
       ['search.paths', () => store.search.paths('a', 5)],
       ['rollups.coupledWith', () => store.rollups.coupledWith(fileId(1), 5)],
       ['rollups.revertPairs', () => store.rollups.revertPairs()],
@@ -1337,7 +1350,6 @@ describe('the deferred query surface', () => {
             hash: bundleHash('deadbeef'),
           }),
       ],
-      ['insertHunks', () => store.transaction((tx) => tx.insertHunks([]))],
     ];
 
     for (const [name, call] of deferred) {

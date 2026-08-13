@@ -116,3 +116,47 @@ network clone of two large repositories — so they are recorded here with the c
 them, and re-measured by hand at each milestone boundary. That division is deliberate and is worth
 naming: CI catches a regression in the cost _model_, and the milestone check catches a regression
 on real history. Neither substitutes for the other.
+
+---
+
+## Amendment, 2026-08-13 (M2): 3 KB → 5 KB per commit
+
+**What changed.** M2's `content` tier stores hunk geometry ([ADR-0004](0004-content-tier.md)),
+and the index no longer fits in 3 KB per commit:
+
+| Target          | M1 (no hunks) | M2 (with hunks) | hunks stored |
+| --------------- | ------------: | --------------: | -----------: |
+| `ripgrep`       |       1.59 KB |     **3.27 KB** |       20,970 |
+| `rust-analyzer` |       2.42 KB |     **3.60 KB** |      362,403 |
+
+**Why the budget moves rather than the code.** The 3 KB figure was measured on an index that
+contained no line-level geometry at all, so it was never a budget for this index — it was a budget
+for M1's. Hunks are not incidental growth: they are what makes `excavate why` able to answer about
+a _line_ instead of a file, which is the product's signature feature. A budget that forbids the
+feature it was written before is measuring the wrong thing, exactly as the original `.git`-ratio
+budget did.
+
+**What was tried first, because a budget should only move after the code cannot.** Two reductions
+were made and kept, and they are real:
+
+- **Non-source files carry no hunks.** Generated, vendored, and lockfile paths are excluded, using
+  the same `nonSourceFiles` set the hotspot ranking already excludes. Nobody asks why line 4,000
+  of `pnpm-lock.yaml` exists. Worth 0.35 KB/commit on `ripgrep`.
+- **One index on `hunks`, not two.** A covering index on `(file_id, new_start, new_len)` would
+  answer the overlap test without visiting the table, and cost more than it saved for a query that
+  only ever scans a single file's rows. Worth 0.15–0.30 KB/commit.
+
+A third — packing all of a `(commit, file)` pair's hunks into one blob row — would save more by
+removing per-row overhead, and was rejected for now: it trades a readable table that SQL can filter
+for an opaque column every reader must decode, and the budget is reachable without it. It stays
+available if M2's remaining tables need the room.
+
+**The new number.** **5 KB of index per indexed commit.** Chosen from the worst measurement
+(3.60 KB) plus headroom for the M2 tables not yet populated — `links` and `coupling` — rather than
+fitted to today's result, which would leave the next commit failing. `perf-assert.mjs` asserts it
+against both corpora on every run.
+
+**What would make this wrong.** If `coupling` alone consumes the remaining 1.4 KB, the honest move
+is the blob packing above, not a third amendment. Two budget increases in one milestone would mean
+the budget is tracking the implementation rather than constraining it, and at that point it has
+stopped being a budget.

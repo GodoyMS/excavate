@@ -44,9 +44,18 @@ const MIN_COMMITS_PER_MINUTE = 25_000;
  * *easier* as a repository grows — `ripgrep` holds ten years of history in 6.8 MB because delta
  * chains over a small, stable file set compress extraordinarily well, so a fixed fraction of
  * `.git` measures git's compression rather than our storage. Bytes per indexed commit measures
- * what we actually control. Measured: 1.1 KB on `ripgrep`, 1.7 KB on `rust-analyzer`.
+ * what we actually control.
+ *
+ * Amended at M2 from 3 KB to 5 KB: the original figure was measured on an index that held no
+ * line-level geometry, and hunks are what let `excavate why` answer about a line rather than a
+ * file. Two reductions were made before the number moved — non-source files carry no hunks, and
+ * `hunks` has one index rather than two — and the 5 KB includes headroom for `links` and
+ * `coupling`, which M2 has not populated yet. See the amendment in ADR-0003 for what would make
+ * a *third* increase the wrong answer.
+ *
+ * Measured with hunks: 3.27 KB on `ripgrep`, 3.60 KB on `rust-analyzer`.
  */
-const MAX_BYTES_PER_COMMIT = 3 * 1024;
+const MAX_BYTES_PER_COMMIT = 5 * 1024;
 
 /** ROADMAP M1: no noise commit in the top *fifty* by significance, not the top eight shown. */
 const SIGNIFICANCE_DEPTH = 50;
@@ -102,7 +111,10 @@ const pipeline = createIndexPipeline({
   walkSpec: DEFAULT_WALK_SPEC,
 });
 for await (const progress of pipeline.run({
-  tiers: ['metadata'],
+  /* Both ground-truth tiers, because that is what a user's index contains: `openSession`
+     asks for every implemented tier, so measuring only `metadata` would report a number
+     nobody experiences. */
+  tiers: ['metadata', 'content'],
   signal: new AbortController().signal,
 })) {
   void progress;

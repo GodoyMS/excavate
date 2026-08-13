@@ -19,6 +19,7 @@ import type {
   CommitFlag,
   FileEntity,
   FileFlag,
+  HunkKind,
   MergeSource,
   Oid,
   PathAlias,
@@ -27,6 +28,7 @@ import type {
 } from '@wise-excavate/core';
 import {
   ExcavateError,
+  HUNK_KINDS,
   commitId,
   fileId,
   pathId,
@@ -137,6 +139,34 @@ export function decodeChangeKind(code: number): ChangeKind {
   const kind = CHANGE_KIND_BY_CODE.get(code);
   if (kind === undefined) {
     throw corrupt(`unknown change kind code ${code}`, { code });
+  }
+  return kind;
+}
+
+/**
+ * Hunk kinds, encoded by position in {@link HUNK_KINDS}.
+ *
+ * Derived from the vocabulary list rather than written out as a second literal, because the two
+ * would eventually disagree and the disagreement would be invisible: rows written under one
+ * mapping and read under another produce plausible-but-wrong kinds, not an error. `satisfies`
+ * on the derived record is what makes a vocabulary change a compile failure here.
+ */
+const HUNK_KIND_CODES = Object.fromEntries(
+  HUNK_KINDS.map((kind, code) => [kind, code]),
+) as Record<HunkKind, number>;
+
+const HUNK_KIND_BY_CODE = new Map<number, HunkKind>(
+  HUNK_KINDS.map((kind, code) => [code, kind]),
+);
+
+export function encodeHunkKind(kind: HunkKind): number {
+  return HUNK_KIND_CODES[kind];
+}
+
+export function decodeHunkKind(code: number): HunkKind {
+  const kind = HUNK_KIND_BY_CODE.get(code);
+  if (kind === undefined) {
+    throw corrupt(`unknown hunk kind code ${code}`, { code });
   }
   return kind;
 }

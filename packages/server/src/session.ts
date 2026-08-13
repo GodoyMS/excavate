@@ -73,7 +73,7 @@ const NULL_OID: Oid = parseOid('0'.repeat(40));
  * but the constant stays: it is what `unbuiltTiers` compares against, and the next tier to be
  * specified before it is implemented (eras, at M5) will need exactly this guard again.
  */
-export const IMPLEMENTED_TIERS: readonly Tier[] = ['metadata', 'analysis'];
+export const IMPLEMENTED_TIERS: readonly Tier[] = ['metadata', 'content', 'analysis'];
 
 /** The requested tiers this release cannot build. */
 export function unbuiltTiers(requested: readonly Tier[]): readonly Tier[] {

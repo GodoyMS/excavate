@@ -140,8 +140,18 @@ describe('the lean cuts are asserted, not just documented', () => {
     expect(LENSES).not.toContain('complexity');
   });
 
-  it('ships 2 indexing tiers, not 4', () => {
-    expect(TIERS).toEqual(['metadata', 'analysis']);
+  /**
+   * Three tiers, not LEAN-V1 §3.3's two, and not Part 8's four.
+   *
+   * This assertion failed when M2's hunk pass landed, which is the fitness function working:
+   * LEAN-V1's numbers are meant to be non-negotiable by default, so moving one requires an
+   * argument on the record. That argument is [ADR-0004](../../../docs/adr/0004-content-tier.md) —
+   * the tier boundary is "needs a git traversal" versus "needs only the store", because that is
+   * the line invalidation cares about. A *fourth* tier still fails here, and whoever wants one
+   * has to go and make the same case.
+   */
+  it('ships 3 indexing tiers, not 4 — see ADR-0004', () => {
+    expect(TIERS).toEqual(['metadata', 'content', 'analysis']);
   });
 
   it('detects eras over 5 dimensions, not 10', () => {

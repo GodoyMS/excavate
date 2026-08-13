@@ -33,6 +33,8 @@ import type {
   CommitFlag,
   CommitId,
   FileFlag,
+  FileId,
+  Hunk,
   IndexState,
   Oid,
   PartialIndexBadge,
@@ -206,6 +208,7 @@ async function* runWalk(
   batchRows: number,
 ): AsyncGenerator<IndexProgress> {
   const analysisRequested = options.tiers.includes('analysis');
+  const contentRequested = options.tiers.includes('content');
   if (!options.tiers.includes('metadata')) {
     // The walk *is* the metadata tier. With nothing else implemented there is no
     // honest work to do, and writing an index state for work that did not happen is
@@ -561,7 +564,139 @@ async function* runWalk(
     note: `indexed ${walked} ${walked === 1 ? 'commit' : 'commits'}`,
   };
 
+  if (contentRequested) yield* runContent(deps, options, batchRows);
   if (analysisRequested) yield ANALYSIS_DEFERRED;
+}
+
+/**
+ * The content tier: hunk geometry for every commit already in the index.
+ *
+ * A second `git` traversal, which is unavoidable — `@wise-excavate/git`'s `hunkArgs` explains why
+ * patch text cannot share the metadata walk's stream. Run after the walk so every commit and file
+ * this attaches to already exists; `changes.file_id REFERENCES files(id)` is immediate, so an
+ * out-of-order write would fail loudly rather than produce orphans.
+ *
+ * **Path resolution reuses the metadata tier's own decisions rather than repeating them.** The
+ * hunk pass reports paths, but a path is not an identity — that is the whole point of the alias
+ * chains in `renames.ts`. Re-deriving `path → FileId` here would mean running rename resolution
+ * a second time and hoping the two agree; instead each commit's stored `changes` rows are read
+ * back, which *are* the mapping the walk committed to. If the two ever disagreed, the disagreement
+ * would be the bug, and there is now no second opinion to have it with.
+ */
+async function* runContent(
+  deps: IndexPipelineDeps,
+  options: IndexRunOptions,
+  batchRows: number,
+): AsyncGenerator<IndexProgress> {
+  const { store, backend } = deps;
+
+  yield { tier: 'content', done: 0, total: null, note: 'reading hunk geometry' };
+
+  /**
+   * Files no line-level question is ever asked about.
+   *
+   * ROADMAP M2 scopes hunk storage to "text files under a size cap", and this is the honest
+   * reading of it: nobody asks why line 4,000 of `pnpm-lock.yaml` exists, or why a `.min.js`
+   * bundle has the shape it does. Storing that geometry costs real bytes and answers no
+   * question — measured on `rust-analyzer`, keeping it put the index at 3.90 KB/commit against
+   * ADR-0003's 3 KB budget, and excluding it is what brings it back inside.
+   *
+   * The same set the hotspot ranking already excludes (`nonSourceFiles`), so a file cannot be
+   * unrankable for hotspots and yet carry hunks — one definition of "not source", used twice.
+   */
+  const excluded = new Set(store.analysis.nonSourceFiles());
+
+  let pending: Hunk[] = [];
+  let seen = 0;
+  let attached = 0;
+  let skipped = 0;
+  let excludedHunks = 0;
+
+  const flush = (): void => {
+    if (pending.length === 0) return;
+    const rows = pending;
+    pending = [];
+    store.transaction((tx) => {
+      tx.insertHunks(rows);
+    });
+  };
+
+  for await (const record of backend.hunks(deps.walkSpec)) {
+    /* Cancellation is checked per commit, and the buffered rows are flushed on the way out —
+       the same contract the metadata walk keeps. Hunks already read are valid; discarding them
+       would make a cancelled run lose work it had genuinely done. */
+    if (options.signal.aborted) {
+      flush();
+      throw new ExcavateError(
+        'CANCELLED',
+        `the hunk pass was cancelled after ${seen} ${seen === 1 ? 'commit' : 'commits'}`,
+        { details: { seen } },
+      );
+    }
+    seen += 1;
+
+    const commit = store.commits.byOid(record.oid);
+    /* A commit the metadata walk did not index. Reachable when the two passes see different
+       histories — a ref moved between them, or the walk was cancelled and left a partial index.
+       Counted and skipped rather than inserted: hunks for a commit that is not in `commits`
+       would violate the foreign key, and inventing the commit here would mean the content tier
+       writing ground truth, which is the walk's job alone. */
+    if (commit === null) {
+      skipped += 1;
+      continue;
+    }
+
+    /* The mapping the walk decided on, read back rather than recomputed. Both sides are
+       registered: a rename's hunks are reported against the new path, but a deletion's only
+       path is the old one. */
+    const fileOf = new Map<string, FileId>();
+    for (const change of store.commits.changesIn(commit.id)) {
+      for (const pathRef of [change.newPath, change.oldPath]) {
+        if (pathRef === null) continue;
+        const path = store.files.pathOf(pathRef);
+        if (path !== null && !fileOf.has(path)) fileOf.set(path, change.file);
+      }
+    }
+
+    for (const file of record.files) {
+      const fileId = fileOf.get(file.path);
+      /* No change row for this path in this commit. git's rename detection ran with the same
+         threshold in both passes, so this is rare — but a mode-only change that `--numstat`
+         reported and `--patch` rendered differently can land here, and a hunk we cannot attach
+         to a file identity is a hunk we must not guess at. */
+      if (fileId === undefined) continue;
+      if (excluded.has(fileId)) {
+        excludedHunks += file.hunks.length;
+        continue;
+      }
+      for (const hunk of file.hunks) {
+        pending.push({ ...hunk, commit: commit.id, file: fileId });
+        attached += 1;
+      }
+    }
+
+    if (pending.length >= batchRows) {
+      flush();
+      yield { tier: 'content', done: seen, total: null, note: null };
+    }
+  }
+  flush();
+
+  yield {
+    tier: 'content',
+    done: seen,
+    total: null,
+    /* The excluded count is reported, not silently dropped. A tier that quietly stored less
+       than it read would make the index look complete when it is deliberately not, and
+       "generated files carry no hunks" is something a reader of `excavate why` output is
+       entitled to know before concluding that nothing touched a line. */
+    note:
+      `${attached.toLocaleString()} ${attached === 1 ? 'hunk' : 'hunks'}` +
+      (excludedHunks > 0
+        ? ` · ${excludedHunks.toLocaleString()} skipped in generated and vendored files`
+        : '') +
+      (skipped > 0 ? ` · ${skipped.toLocaleString()} commits not in the index` : ''),
+  };
 }
 
 /* ── Identity merging and rename resolution ────────────────────────────────── */

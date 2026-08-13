@@ -30,8 +30,20 @@ export const DEFAULT_PROJECTION: HistoryProjection = 'first-parent';
 
 /* ── Indexing ──────────────────────────────────────────────────────────────── */
 
-/** LEAN-V1 §3.3 trims four indexing tiers to two. */
-export const TIERS = ['metadata', 'analysis'] as const;
+/**
+ * LEAN-V1 §3.3 trims Part 8's four indexing tiers to three.
+ *
+ * Ordered by dependency, and the order is meaningful: `content` needs `metadata`'s commit and
+ * file identity to attach hunks to, and `analysis` reads `content`'s whitespace-only hunks to
+ * decide `format-only`. A caller asking for a later tier without an earlier one gets nothing
+ * done rather than something half-done.
+ *
+ * `content` is separate from `metadata` rather than folded into it because it is a *second git
+ * traversal* and a far more expensive one — see `hunkArgs` in `@wise-excavate/git` for why the
+ * patch text cannot share the metadata walk's stream at all. M1 ran without it; M2's evidence
+ * engine cannot.
+ */
+export const TIERS = ['metadata', 'content', 'analysis'] as const;
 export type Tier = (typeof TIERS)[number];
 
 /**

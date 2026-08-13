@@ -65,9 +65,11 @@ CREATE TABLE hunks (
 -- pre-filter a scan, which is the whole cost this index exists to remove.
 CREATE INDEX hunks_by_file ON hunks (file_id, commit_id);
 
--- Covers the overlap test directly, so 'which hunks in this file touch lines 140-150' is
--- answered from the index without visiting the table.
-CREATE INDEX hunks_by_span ON hunks (file_id, new_start, new_len);
+-- One index, not two. A second index on (file_id, new_start, new_len) would let the overlap
+-- test be answered without visiting the table, and it costs more than it saves: measured on
+-- 'rust-analyzer' it added roughly 0.2 KB per indexed commit against ADR-0003's 3 KB budget,
+-- to accelerate a query that already only ever scans a single file's hunks. The index above
+-- puts those rows adjacent, which is the part that matters.
 
 -- ─── links: typed relations with their provenance ────────────────────────────
 -- Part 9's generic link table, and the generality is earned rather than speculative: M2 alone

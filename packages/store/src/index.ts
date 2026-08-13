@@ -102,6 +102,15 @@ export interface CommitQueries {
   mostSignificant(limit: number): readonly Commit[];
   changesIn(commit: CommitId): readonly Change[];
   hunksIn(commit: CommitId, file: FileId): readonly Hunk[];
+  /**
+   * Every commit whose hunks overlap `[startLine, endLine)` in this file — blame's pre-filter.
+   *
+   * The reason the `hunks` table is worth its rows. Part 9's blame strategy consults only the
+   * commits that could have touched the lines in question instead of blaming a whole file and
+   * discarding the rest; on a 3,000-line file with 400 commits that is a handful rather than all
+   * of them. Newest first, so a caller that only wants "who last changed this line" reads one row.
+   */
+  commitsTouching(file: FileId, startLine: number, endLine: number): readonly CommitId[];
   /** Ancestry via generation numbers, held in memory (Part 8 §8.7). */
   isAncestor(ancestor: CommitId, descendant: CommitId): boolean;
 }

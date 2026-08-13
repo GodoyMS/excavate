@@ -39,8 +39,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
  */
 const COMMITS = 240;
 
-/** ADR-0003. Measured: 1.1 KB/commit on `ripgrep`, 1.7 KB/commit on `rust-analyzer`. */
-const MAX_BYTES_PER_COMMIT = 3 * 1024;
+/** ADR-0003 as amended at M2. Measured with hunks: 3.27 KB on `ripgrep`, 3.60 on `rust-analyzer`. */
+const MAX_BYTES_PER_COMMIT = 5 * 1024;
 
 /**
  * A catastrophic-regression tripwire, **not** the ROADMAP's throughput budget.
@@ -173,7 +173,7 @@ describe('perf budgets', () => {
     expect(
       perCommit,
       `${(perCommit / 1024).toFixed(2)} KB/commit — budget ${MAX_BYTES_PER_COMMIT / 1024} KB ` +
-        `(ADR-0003; measured 1.1 KB on ripgrep, 1.7 KB on rust-analyzer)`,
+        `(ADR-0003 as amended; measured 3.27 KB on ripgrep, 3.60 KB on rust-analyzer)`,
     ).toBeLessThan(MAX_BYTES_PER_COMMIT);
   });
 

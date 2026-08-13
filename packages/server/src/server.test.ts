@@ -169,6 +169,7 @@ function fakeStore(rows: readonly Commit[]): StoreDouble {
         return commit === undefined ? [] : changesFor(commit);
       },
       hunksIn: () => [],
+      commitsTouching: unsupported,
       isAncestor: unsupported,
     },
     files: {
@@ -767,13 +768,13 @@ describe('createServer', () => {
 /* ── The session lifecycle (Part 7 §7.5) ───────────────────────────────────── */
 
 describe('tier honesty', () => {
-  it('no longer reports a tier gap, because both tiers are now built', () => {
+  it('no longer reports a tier gap, because every tier is now built', () => {
     /* This is the test its own M0 version said would have to change at M1, and it has.
        `analysis` is built — by the composition root, over stored rows — so nothing is
        unbuilt and no badge is warranted. The constant and the guard both stay: the next tier
        specified ahead of its implementation (eras, at M5) needs exactly this mechanism, and
        re-deriving it then is how a daemon ends up blessing a tier nobody wrote. */
-    expect(IMPLEMENTED_TIERS).toEqual(['metadata', 'analysis']);
+    expect(IMPLEMENTED_TIERS).toEqual(['metadata', 'content', 'analysis']);
     expect(unbuiltTiers(TIERS)).toEqual([]);
     expect(unbuiltTiers(['metadata'])).toEqual([]);
     // The guard still fires for a tier this release does not implement.

@@ -27,11 +27,18 @@ import type {
   Tag,
   CommitId,
 } from '@wise-excavate/core';
-import { NotImplementedError, pathId } from '@wise-excavate/core';
+import { pathId } from '@wise-excavate/core';
 import type BetterSqlite3 from 'better-sqlite3';
 
 import type { HotspotWrite, KnowledgeWrite, OwnershipWrite } from './analysis.js';
-import { bit, changeBind, commitBind, fileBind, personBind } from './codec.js';
+import {
+  bit,
+  changeBind,
+  commitBind,
+  encodeHunkKind,
+  fileBind,
+  personBind,
+} from './codec.js';
 import type { Transaction } from './index.js';
 import { INDEX_STATE_KEY, REPO_ID_KEY, SCHEMA_VERSION_KEY } from './meta.js';
 
@@ -98,6 +105,28 @@ export function createTransactionApi(db: BetterSqlite3.Database): Transaction {
        @commitId, @fileId, @kind, @oldPathId, @newPathId, @similarity,
        @insertions, @deletions, @isBinary
      )`,
+  );
+
+  /**
+   * No `WITHOUT ROWID` on `hunks`, so this is a plain insert with no conflict clause.
+   *
+   * A file can have many hunks in one commit and there is no natural key to collide on — the
+   * same `(commit, file, oldStart)` is genuinely possible for a rename that both moved and
+   * edited. Deduplication would therefore be *wrong* here, not merely unnecessary: it would
+   * silently drop real geometry. Re-running the hunk pass over a commit that already has rows
+   * is prevented upstream by `analyzer_runs`, not by the schema.
+   */
+  const insertHunk = db.prepare<{
+    commitId: number;
+    fileId: number;
+    oldStart: number | null;
+    oldLen: number | null;
+    newStart: number | null;
+    newLen: number | null;
+    kind: number;
+  }>(
+    `INSERT INTO hunks (commit_id, file_id, old_start, old_len, new_start, new_len, kind)
+     VALUES (@commitId, @fileId, @oldStart, @oldLen, @newStart, @newLen, @kind)`,
   );
 
   // Upserted rather than inserted because a person's aggregate fields keep moving for
@@ -262,8 +291,23 @@ export function createTransactionApi(db: BetterSqlite3.Database): Transaction {
       for (const change of rows) insertChange.run(changeBind(change));
     },
 
-    insertHunks(_rows: readonly Hunk[]): void {
-      throw new NotImplementedError('Transaction.insertHunks', 'M2');
+    insertHunks(rows: readonly Hunk[]): void {
+      assertInTransaction('insertHunks');
+      for (const hunk of rows) {
+        /* NULL, not 0, for the side that does not exist. A pure insertion has no position in
+           the old file, and storing zero would make it look like line zero — which every
+           overlap query would then treat as a real position. The schema allows NULL precisely
+           so this distinction survives. */
+        insertHunk.run({
+          commitId: hunk.commit,
+          fileId: hunk.file,
+          oldStart: hunk.oldLen === 0 ? null : hunk.oldStart,
+          oldLen: hunk.oldLen === 0 ? null : hunk.oldLen,
+          newStart: hunk.newLen === 0 ? null : hunk.newStart,
+          newLen: hunk.newLen === 0 ? null : hunk.newLen,
+          kind: encodeHunkKind(hunk.kind),
+        });
+      }
     },
 
     upsertPeople(rows: readonly Person[]): void {
