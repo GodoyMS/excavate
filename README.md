@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/GodoyMS/excavate/actions/workflows/ci.yml/badge.svg)](https://github.com/GodoyMS/excavate/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![npm](https://img.shields.io/npm/v/wise-excavate?label=wise-excavate)](https://www.npmjs.com/package/wise-excavate)
 [![npm](https://img.shields.io/npm/v/@wise-excavate/git-fixtures?label=%40wise-excavate%2Fgit-fixtures)](https://www.npmjs.com/package/@wise-excavate/git-fixtures)
 
 > **Git tells you what changed. Excavate tells you why.**
@@ -9,24 +10,64 @@
 Excavate turns any Git repository into a story you can read, a map you can explore, and
 a question you can ask — with receipts on every claim.
 
-> **Status: pre-alpha (M0 — foundations & walking skeleton).** Nothing is released yet.
+> **Status: alpha — v0.1, milestone M1 of nine.** Useful today, and narrower than the
+> paragraph above it will eventually describe. That paragraph is the destination; this block
+> is the current position, and it will stay honest at every release.
 >
-> Published so far: **[`@wise-excavate/git-fixtures`](https://www.npmjs.com/package/@wise-excavate/git-fixtures)**
-> — the fixture DSL, useful on its own to anyone testing Git tooling (`npm i -D
-@wise-excavate/git-fixtures`). The product itself is not released.
+> What works today: `excavate stats` on any repository — knowledge
+> islands, hotspots with their factor breakdown, the most significant commits, and the cast
+> of characters, plus `--json` for scripting. Underneath: a streaming git walk, identity
+> merging, rename resolution with alias chains, noise classification, incremental update, and
+> the [`repo()` fixture DSL](fixtures) with a 24-case matrix.
 >
-> What works today: `excavate index` and `excavate open` on any repository, a real SQLite
-> index (schema v1), a localhost daemon with a token-authenticated API, a plain HTML commit
-> list, and the [`repo()` fixture DSL](fixtures) with a 24-case matrix. Deliberately _not_
-> here: rename tracking, identity merging, significance, hotspots, ownership, eras, and
-> every analysis feature — those are M1+, and each stub throws `NotImplementedError` naming
-> the milestone that fills it in.
->
-> So `excavate open` currently shows you a commit list, not insight. The first genuinely
-> useful release is `excavate stats` at **M1 (v0.1)**.
+> Deliberately _not_ here: hunks, blame, eras, coupling, and `excavate why` — those are
+> **M2 (v0.2)**, and each stub throws `NotImplementedError` naming the milestone that fills
+> it in. There is no UI until M3; the terminal is the product today.
 >
 > Plan: [ROADMAP.md](docs/spec/ROADMAP.md) · Scope: [LEAN-V1.md](docs/spec/LEAN-V1.md) ·
 > Reference: [SPEC.md](SPEC.md)
+
+## Try it
+
+No install, no account, no API key. Run it inside any git repository:
+
+```sh
+npx wise-excavate stats
+```
+
+Here is part of what it finds in [ripgrep](https://github.com/BurntSushi/ripgrep) — 2,255
+commits indexed in about a second:
+
+```
+  KNOWLEDGE ISLANDS
+  One person holds the knowledge, and they have stopped contributing.
+
+  ● crates/searcher/src/searcher/mmap.rs      howmanysmall     last seen 8mo ago
+  ● crates/globset/src/serde_impl.rs          David Torosyan   last seen 13mo ago
+  ● crates/core/flags/complete/encodings.sh   Jan Verbeek      last seen 2.6y ago
+  ● fuzz/fuzz_targets/fuzz_glob.rs            William Johnson  last seen 2.6y ago
+
+  HOTSPOTS
+  churn × complexity × recency × fix density. Every factor shown.
+
+   score  churn cmplx recent fixes   chgs  file
+   0.836   .85  .82    .96  .25    123  tests/tests.rs
+   0.807   .89  .94    .96  .00     33  crates/core/flags/defs.rs
+   0.658   .85  .73    .97  .10     84  crates/ignore/src/walk.rs
+   0.629   .82  .75    .93  .09     69  crates/globset/src/lib.rs
+```
+
+A **knowledge island** is a file exactly one person understands, who has stopped
+contributing. Both halves are required: a bus factor of 1 on a file whose owner committed
+yesterday is _normal_, and reporting those would bury the signal. The islands section comes
+first because it is the part most likely to tell you something you did not know.
+
+A **hotspot** score is a _product_, never a sum, so a file has to score on more than one axis
+to rank — the biggest file in the repository is not a hotspot if nobody changes it. Every
+factor is always shown, because a bare 0.836 is not an answer.
+
+The command is `excavate`; the npm package is `wise-excavate`, because `excavate` was already
+taken ([ADR-0002](docs/adr/0002-npm-naming.md)).
 
 ## The contract
 

@@ -8,10 +8,50 @@ Before 1.0 the minor version tracks the milestone that produced it — M1 ships 
 ships v0.2, through v1.0 at M6 ([ROADMAP §2](docs/spec/ROADMAP.md)). Every milestone
 ends in a release with an entry here, by construction: a milestone is not done until it
 is "published to npm with a changelog entry and a git tag"
-([ROADMAP §3](docs/spec/ROADMAP.md), item 6). There is no released version yet, so this
-file has exactly one section.
+([ROADMAP §3](docs/spec/ROADMAP.md), item 6).
+
+## v0.1.1 — 2026-08-13
+
+**M1 — Index engine & `excavate stats`.** The first genuinely useful release: one command,
+run in any repository, that tells you something about it you did not know.
+
+`excavate stats` reports **knowledge islands** (a file exactly one person understands, who
+has stopped contributing), **hotspots** as a product of churn, complexity, recency and fix
+density with every factor shown, the **most significant commits**, and the **cast of
+characters** — plus `--json`, which emits the same document the daemon assembles rather than
+a second hand-built shape, so the terminal, M3's Overview and M8's MCP tools cannot drift.
+
+Underneath it: a streaming `git log` walk, five-step identity merging with `.mailmap` and bot
+detection, rename resolution with alias chains, noise classification, an incremental
+fast-forward path, and the analysis tier — significance scoring, ownership with recency decay,
+bus factor, entropy, islands and hotspots.
+
+Verified on all three reference targets. On a laptop: `ripgrep` 2,255 commits in 1.0s at 150k
+commits/min, `rust-analyzer` 12,864 in 11.5s at 71k/min, both within 3 KB of index per commit,
+and **zero** format-only, generated, lockfile-only or bulk-mechanical commits in either
+repository's top fifty by significance. Those budgets are now asserted in CI against both
+corpora rather than described here.
+
+Ten packages published: `wise-excavate` (the CLI) and nine `@wise-excavate/*` libraries.
+
+### Known limitations
+
+Both are consequences of M1 deliberately deferring hunks to M2, and both are recorded rather
+than worked around:
+
+- **The complexity factor is derived from change size**, because file _content_ is not in the
+  index until M2. It is therefore strongly correlated with churn — ripgrep shows factor pairs
+  like `.86/.97` — so the hotspot score is closer to a product of two independent axes than
+  four. It ranks usefully; it is weaker than the formula implies.
+- **`format-only` is never set.** Whitespace-only detection needs the diff body, so a codemod
+  is currently caught by scale plus uniformity, or by a subject naming the tool that made it.
+  That held on both corpora, but it is a heuristic standing in for a measurement.
 
 ## Unreleased
+
+Nothing yet. **M2 — Evidence engine & `excavate why`** is next.
+
+## v0.1.0-fixtures — 2026-08-11
 
 **M0 — Foundations & fixture DSL.** Complete, with one item outstanding: the write-up has
 not been posted.
